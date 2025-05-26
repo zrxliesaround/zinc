@@ -27,6 +27,30 @@ local function predict(pos, vel, pred)
 end
 
 -- ESP
+local function getBoundingBox(parts)
+    local min = Vector3.new(math.huge, math.huge, math.huge)
+    local max = Vector3.new(-math.huge, -math.huge, -math.huge)
+
+    for _, part in ipairs(parts) do
+        local cf = part.CFrame
+        local size = part.Size
+        for x = -0.5, 0.5, 1 do
+            for y = -0.5, 0.5, 1 do
+                for z = -0.5, 0.5, 1 do
+                    local corner = cf.Position + (cf.RightVector * size.X * x) + (cf.UpVector * size.Y * y) + (cf.LookVector * size.Z * z)
+                    min = Vector3.new(math.min(min.X, corner.X), math.min(min.Y, corner.Y), math.min(min.Z, corner.Z))
+                    max = Vector3.new(math.max(max.X, corner.X), math.max(max.Y, corner.Y), math.max(max.Z, corner.Z))
+                end
+            end
+        end
+    end
+
+    local center = (min + max) / 2
+    local size = max - min
+    return CFrame.new(center), size
+end
+
+-- ESP
 if config.ESP and config.ESP.Enabled then
     local Camera = workspace.CurrentCamera
     local espConnections = {}
@@ -80,38 +104,45 @@ if config.ESP and config.ESP.Enabled then
             local pos, onScreen = Camera:WorldToViewportPoint(root.Position)
 
             if onScreen then
-                -- BoxESP (dynamic size)
+                -- Accurate BoxESP
                 if config.ESP.BoxESP.Enabled then
-                    local minVec = Vector3.new(math.huge, math.huge, math.huge)
-                    local maxVec = Vector3.new(-math.huge, -math.huge, -math.huge)
-
-                    for _, part in ipairs(char:GetChildren()) do
-                        if part:IsA("BasePart") then
-                            local pos = part.Position
-                            minVec = Vector3.new(
-                                math.min(minVec.X, pos.X),
-                                math.min(minVec.Y, pos.Y),
-                                math.min(minVec.Z, pos.Z)
-                            )
-                            maxVec = Vector3.new(
-                                math.max(maxVec.X, pos.X),
-                                math.max(maxVec.Y, pos.Y),
-                                math.max(maxVec.Z, pos.Z)
-                            )
+                    local parts = {}
+                    for _, p in ipairs(char:GetChildren()) do
+                        if p:IsA("BasePart") then
+                            table.insert(parts, p)
                         end
                     end
 
-                    local topLeft3D = Vector3.new(minVec.X, maxVec.Y, minVec.Z)
-                    local bottomRight3D = Vector3.new(maxVec.X, minVec.Y, maxVec.Z)
-                    local topLeft2D, onScreen1 = Camera:WorldToViewportPoint(topLeft3D)
-                    local bottomRight2D, onScreen2 = Camera:WorldToViewportPoint(bottomRight3D)
+                    if #parts > 0 then
+                        local cframe, size = getBoundingBox(parts)
+                        local corners = {}
 
-                    if onScreen1 and onScreen2 then
-                        esp.Box.Position = Vector2.new(topLeft2D.X, topLeft2D.Y)
-                        esp.Box.Size = Vector2.new(bottomRight2D.X - topLeft2D.X, bottomRight2D.Y - topLeft2D.Y)
-                        esp.Box.Visible = true
-                    else
-                        esp.Box.Visible = false
+                        for x = -0.5, 0.5, 1 do
+                            for y = -0.5, 0.5, 1 do
+                                for z = -0.5, 0.5, 1 do
+                                    local worldPos = (cframe * CFrame.new(x * size.X, y * size.Y, z * size.Z)).Position
+                                    local screenPos, onScreenCorner = Camera:WorldToViewportPoint(worldPos)
+                                    if onScreenCorner then
+                                        table.insert(corners, Vector2.new(screenPos.X, screenPos.Y))
+                                    end
+                                end
+                            end
+                        end
+
+                        if #corners == 8 then
+                            local topLeft = corners[1]
+                            local bottomRight = corners[1]
+                            for _, corner in ipairs(corners) do
+                                topLeft = Vector2.new(math.min(topLeft.X, corner.X), math.min(topLeft.Y, corner.Y))
+                                bottomRight = Vector2.new(math.max(bottomRight.X, corner.X), math.max(bottomRight.Y, corner.Y))
+                            end
+
+                            esp.Box.Position = topLeft
+                            esp.Box.Size = bottomRight - topLeft
+                            esp.Box.Visible = true
+                        else
+                            esp.Box.Visible = false
+                        end
                     end
                 else
                     esp.Box.Visible = false
