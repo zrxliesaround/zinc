@@ -75,37 +75,63 @@ if config.ESP and config.ESP.Enabled then
                 return
             end
 
-            local root = char.HumanoidRootPart
+            local root = char:FindFirstChild("HumanoidRootPart")
+            local head = char:FindFirstChild("Head")
             local pos, onScreen = Camera:WorldToViewportPoint(root.Position)
 
             if onScreen then
-                local head = char:FindFirstChild("Head")
-                local hrp = root
-                local size = Vector2.new(30, 60)
-
-                -- Box
+                -- BoxESP (dynamic size)
                 if config.ESP.BoxESP.Enabled then
-                    esp.Box.Position = Vector2.new(pos.X - size.X/2, pos.Y - size.Y/2)
-                    esp.Box.Size = size
-                    esp.Box.Visible = true
+                    local minVec = Vector3.new(math.huge, math.huge, math.huge)
+                    local maxVec = Vector3.new(-math.huge, -math.huge, -math.huge)
+
+                    for _, part in ipairs(char:GetChildren()) do
+                        if part:IsA("BasePart") then
+                            local pos = part.Position
+                            minVec = Vector3.new(
+                                math.min(minVec.X, pos.X),
+                                math.min(minVec.Y, pos.Y),
+                                math.min(minVec.Z, pos.Z)
+                            )
+                            maxVec = Vector3.new(
+                                math.max(maxVec.X, pos.X),
+                                math.max(maxVec.Y, pos.Y),
+                                math.max(maxVec.Z, pos.Z)
+                            )
+                        end
+                    end
+
+                    local topLeft3D = Vector3.new(minVec.X, maxVec.Y, minVec.Z)
+                    local bottomRight3D = Vector3.new(maxVec.X, minVec.Y, maxVec.Z)
+                    local topLeft2D, onScreen1 = Camera:WorldToViewportPoint(topLeft3D)
+                    local bottomRight2D, onScreen2 = Camera:WorldToViewportPoint(bottomRight3D)
+
+                    if onScreen1 and onScreen2 then
+                        esp.Box.Position = Vector2.new(topLeft2D.X, topLeft2D.Y)
+                        esp.Box.Size = Vector2.new(bottomRight2D.X - topLeft2D.X, bottomRight2D.Y - topLeft2D.Y)
+                        esp.Box.Visible = true
+                    else
+                        esp.Box.Visible = false
+                    end
                 else
                     esp.Box.Visible = false
                 end
 
-                -- Name
+                -- NameESP
                 if config.ESP.NameESP.Enabled and head then
+                    local headPos = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
                     esp.Name.Text = player.Name
-                    esp.Name.Position = Vector2.new(pos.X, pos.Y - size.Y/2 - 14)
+                    esp.Name.Position = Vector2.new(headPos.X, headPos.Y - 14)
                     esp.Name.Visible = true
                 else
                     esp.Name.Visible = false
                 end
 
-                -- Distance
+                -- DistanceESP
                 if config.ESP.DistanceESP.Enabled then
                     local distance = (LocalPlayer.Character.HumanoidRootPart.Position - root.Position).Magnitude
                     esp.Distance.Text = "[" .. math.floor(distance) .. "m]"
-                    esp.Distance.Position = Vector2.new(pos.X, pos.Y + size.Y/2)
+                    esp.Distance.Position = Vector2.new(pos.X, pos.Y + 40)
                     esp.Distance.Visible = true
                 else
                     esp.Distance.Visible = false
@@ -113,7 +139,12 @@ if config.ESP and config.ESP.Enabled then
 
                 -- Tracer
                 if config.ESP.Tracers.Enabled then
-                    local screenOrigin = Vector2.new(pos.X, config.ESP.Tracers.Origin == "Bottom" and Camera.ViewportSize.Y or config.ESP.Tracers.Origin == "Top" and 0 or Camera.ViewportSize.Y/2)
+                    local screenOrigin = Vector2.new(
+                        pos.X,
+                        config.ESP.Tracers.Origin == "Bottom" and Camera.ViewportSize.Y or
+                        config.ESP.Tracers.Origin == "Top" and 0 or
+                        Camera.ViewportSize.Y / 2
+                    )
                     esp.Tracer.From = screenOrigin
                     esp.Tracer.To = Vector2.new(pos.X, pos.Y)
                     esp.Tracer.Visible = true
