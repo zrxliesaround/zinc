@@ -340,9 +340,9 @@ if config['Speed Modifications'].Options.Enabled then
         end
         if speedEnabled then
             if key == speedUpKey then
-                speed = speed + 5
+                speed = speed + 15
             elseif key == speedDownKey then
-                speed = math.max(0, speed - 5)
+                speed = math.max(0, speed - 15)
             end
         end
     end)
