@@ -240,59 +240,61 @@ if config['Silent Aim'].Enabled then
 end
 
 -- Camlock
+-- Camlock
 if config['Camlock'].Enabled then
     local camlockActive = false
     local camlockTarget = nil
+    local camlockPart = nil
     local toggleKey = "v"
     local camera = workspace.CurrentCamera
 
-    -- Get the closest player to crosshair
+    -- Get the closest player part to the crosshair
     local function getClosestToCrosshair(maxDistance)
-        local closestPlayer = nil
+        local closestPlayer, closestPart = nil, nil
         local closestDistance = maxDistance or math.huge
         local screenCenter = Vector2.new(camera.ViewportSize.X / 2, camera.ViewportSize.Y / 2)
 
         for _, player in ipairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                local part = player.Character:FindFirstChild(config['Camlock']['Hit Location'].Parts[1])
-                if part then
-                    local screenPos, onScreen = camera:WorldToViewportPoint(part.Position)
-                    if onScreen then
-                        local distance = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
-                        if distance < closestDistance then
-                            closestDistance = distance
-                            closestPlayer = player
+            if player ~= LocalPlayer and player.Character then
+                for _, partName in ipairs(config['Camlock']['Hit Location'].Parts) do
+                    local part = player.Character:FindFirstChild(partName)
+                    if part then
+                        local screenPos, onScreen = camera:WorldToViewportPoint(part.Position)
+                        if onScreen then
+                            local distance = (Vector2.new(screenPos.X, screenPos.Y) - screenCenter).Magnitude
+                            if distance < closestDistance then
+                                closestDistance = distance
+                                closestPlayer = player
+                                closestPart = part
+                            end
                         end
                     end
                 end
             end
         end
 
-        return closestPlayer
+        return closestPlayer, closestPart
     end
 
-    -- Toggle camlock with the V key
+    -- Toggle Camlock with V key
     Mouse.KeyDown:Connect(function(key)
         if key:lower() == toggleKey then
             camlockActive = not camlockActive
             if camlockActive then
-                camlockTarget = getClosestToCrosshair(config.Range['Camlock'])
+                camlockTarget, camlockPart = getClosestToCrosshair(config.Range['Camlock'])
             else
-                camlockTarget = nil
+                camlockTarget, camlockPart = nil, nil
             end
         end
     end)
 
-    -- Camlock aim adjustment
+    -- Lock camera onto part
     RunService.RenderStepped:Connect(function()
-        if camlockActive and camlockTarget and camlockTarget.Character then
-            local part = camlockTarget.Character:FindFirstChild(config['Camlock']['Hit Location'].Parts[1])
-            if part then
-                camera.CFrame = camera.CFrame:Lerp(
-                    CFrame.new(camera.CFrame.Position, part.Position),
-                    config['Camlock'].Value.Snappiness
-                )
-            end
+        if camlockActive and camlockTarget and camlockPart and camlockTarget.Character then
+            camera.CFrame = camera.CFrame:Lerp(
+                CFrame.new(camera.CFrame.Position, camlockPart.Position),
+                config['Camlock'].Value.Snappiness
+            )
         end
     end)
 end
