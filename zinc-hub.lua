@@ -28,8 +28,32 @@ end
 
 -- ESP
 local Camera = workspace.CurrentCamera
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local LocalPlayer = Players.LocalPlayer
+local config = getgenv().zinc
 local espConnections = {}
 local espObjects = {}
+
+-- Bounding box helper function
+local function getBoundingBox(parts)
+    local min, max = parts[1].Position, parts[1].Position
+    for _, part in ipairs(parts) do
+        min = Vector3.new(
+            math.min(min.X, part.Position.X),
+            math.min(min.Y, part.Position.Y),
+            math.min(min.Z, part.Position.Z)
+        )
+        max = Vector3.new(
+            math.max(max.X, part.Position.X),
+            math.max(max.Y, part.Position.Y),
+            math.max(max.Z, part.Position.Z)
+        )
+    end
+    local center = (min + max) / 2
+    local size = max - min
+    return CFrame.new(center), size
+end
 
 local function createESPObject(player)
     local esp = {
@@ -61,7 +85,6 @@ local function createESPObject(player)
     esp.Tracer.Color = config.ESP.Tracers.Color
     esp.Tracer.Thickness = config.ESP.Tracers.Thickness
 
-    -- Store esp objects globally
     espObjects[player] = esp
 
     espConnections[player] = RunService.RenderStepped:Connect(function()
@@ -71,7 +94,7 @@ local function createESPObject(player)
             return
         end
 
-        local root = char:FindFirstChild("HumanoidRootPart")
+        local root = char.HumanoidRootPart
         local head = char:FindFirstChild("Head")
         local pos, onScreen = Camera:WorldToViewportPoint(root.Position)
 
@@ -160,7 +183,7 @@ local function createESPObject(player)
         end
     end)
 
-    -- Cleanup when character is removed
+    -- Cleanup
     player.CharacterRemoving:Connect(function()
         for _, obj in pairs(esp) do
             if obj.Remove then obj:Remove() end
@@ -172,14 +195,20 @@ local function createESPObject(player)
     end)
 end
 
--- Setup for existing players
+-- Setup existing players
 for _, player in ipairs(Players:GetPlayers()) do
     if player ~= LocalPlayer then
-        createESPObject(player)
+        player.CharacterAdded:Connect(function()
+            wait(1)
+            createESPObject(player)
+        end)
+        if player.Character then
+            createESPObject(player)
+        end
     end
 end
 
--- Setup for new players
+-- Handle new players
 Players.PlayerAdded:Connect(function(player)
     player.CharacterAdded:Connect(function()
         wait(1)
