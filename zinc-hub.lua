@@ -1,9 +1,10 @@
--- Zinc Hub Script (Main Execution Script)
+-- Zinc Script (Main Execution Script)
 local config = getgenv().zinc
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 local Mouse = LocalPlayer:GetMouse()
+local Camera = workspace.CurrentCamera
 
 -- Utilities
 local function getClosestPlayer(range)
@@ -25,7 +26,74 @@ local function predict(pos, vel, pred)
     return pos + (vel * pred)
 end
 
--- Silent Aim (Example Hook)
+-- ESP
+if config.ESP and config.ESP.Enabled then
+    local function createESP(player)
+        local box, tracer, nameTag, distanceTag, skeleton = {}, {}, {}, {}, {}
+
+        local function removeESP()
+            for _, v in pairs({box, tracer, nameTag, distanceTag, skeleton}) do
+                for _, obj in pairs(v) do
+                    if obj and obj.Remove then obj:Remove() end
+                end
+            end
+        end
+
+        RunService.RenderStepped:Connect(function()
+            if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+                local root = player.Character.HumanoidRootPart
+                local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
+
+                if onScreen then
+                    -- Draw Tracer
+                    if config.ESP.Tracers.Enabled then
+                        -- You would use Drawing.new("Line") or similar APIs
+                        -- Here you would update tracer.Position etc.
+                    end
+
+                    -- Draw Box ESP
+                    if config.ESP.BoxESP.Enabled then
+                        -- Similar Drawing logic
+                    end
+
+                    -- Name Tag
+                    if config.ESP.NameESP.Enabled then
+                        -- Similar Drawing logic
+                    end
+
+                    -- Distance ESP
+                    if config.ESP.DistanceESP.Enabled then
+                        -- Similar Drawing logic
+                    end
+
+                    -- Skeleton ESP
+                    if config.ESP.Skeleton.Enabled then
+                        -- Drawing logic for bones
+                    end
+                end
+            end
+        end)
+
+        player.CharacterRemoving:Connect(removeESP)
+    end
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            createESP(player)
+        end
+    end
+
+    Players.PlayerAdded:Connect(function(player)
+        if player ~= LocalPlayer then
+            player.CharacterAdded:Connect(function()
+                wait(1)
+                createESP(player)
+            end)
+        end
+    end)
+end
+
+-- Silent Aim
 if config['Silent Aim'].Enabled then
     local mt = getrawmetatable(game)
     local oldNamecall = mt.__namecall
@@ -101,7 +169,7 @@ if config['Speed Modifications'].Options.Enabled then
             if speedEnabled then
                 LocalPlayer.Character.Humanoid.WalkSpeed = speed
             else
-                LocalPlayer.Character.Humanoid.WalkSpeed = 16 -- default WalkSpeed
+                LocalPlayer.Character.Humanoid.WalkSpeed = 16
             end
         end
     end)
@@ -123,7 +191,6 @@ end
 
 -- Spread Modifications
 if config['Spread modifications'].Options.Enabled then
-    -- Replace weapon spread values (example, depends on game)
     local spread = config['Spread modifications'].Options.Multiplier
     -- Hook function here as needed depending on the game
 end
