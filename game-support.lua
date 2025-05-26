@@ -61,8 +61,8 @@ return {
         }
     },
 
-    [100000003] = {
-        name = "Da Hood Copy 3",
+    [75159825516372] = {
+        name = "track aim trainer",
         safe = true,
         hasAntiCheat = false,
         remotes = {
