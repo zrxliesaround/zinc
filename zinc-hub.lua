@@ -28,68 +28,128 @@ end
 
 -- ESP
 if config.ESP and config.ESP.Enabled then
-    local function createESP(player)
-        local box, tracer, nameTag, distanceTag, skeleton = {}, {}, {}, {}, {}
+    local Camera = workspace.CurrentCamera
+    local espConnections = {}
 
-        local function removeESP()
-            for _, v in pairs({box, tracer, nameTag, distanceTag, skeleton}) do
-                for _, obj in pairs(v) do
-                    if obj and obj.Remove then obj:Remove() end
-                end
+    local function createESPObject(player)
+        local esp = {
+            Box = Drawing.new("Square"),
+            Name = Drawing.new("Text"),
+            Distance = Drawing.new("Text"),
+            Tracer = Drawing.new("Line")
+        }
+
+        -- Box settings
+        esp.Box.Visible = false
+        esp.Box.Color = config.ESP.BoxESP.Color
+        esp.Box.Thickness = config.ESP.BoxESP.Thickness
+        esp.Box.Transparency = config.ESP.BoxESP.Transparency
+        esp.Box.Filled = config.ESP.BoxESP.Filled
+
+        -- Name settings
+        esp.Name.Visible = false
+        esp.Name.Color = config.ESP.NameESP.Color
+        esp.Name.Size = config.ESP.NameESP.TextSize
+        esp.Name.Outline = config.ESP.NameESP.Outline
+        esp.Name.Center = true
+
+        -- Distance settings
+        esp.Distance.Visible = false
+        esp.Distance.Color = config.ESP.DistanceESP.Color
+        esp.Distance.Size = config.ESP.DistanceESP.TextSize
+        esp.Distance.Outline = true
+        esp.Distance.Center = true
+
+        -- Tracer settings
+        esp.Tracer.Visible = false
+        esp.Tracer.Color = config.ESP.Tracers.Color
+        esp.Tracer.Thickness = config.ESP.Tracers.Thickness
+
+        espConnections[player] = RunService.RenderStepped:Connect(function()
+            local char = player.Character
+            if not char or not char:FindFirstChild("HumanoidRootPart") then
+                esp.Box.Visible = false
+                esp.Name.Visible = false
+                esp.Distance.Visible = false
+                esp.Tracer.Visible = false
+                return
             end
-        end
 
-        RunService.RenderStepped:Connect(function()
-            if player and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
-                local root = player.Character.HumanoidRootPart
-                local screenPos, onScreen = Camera:WorldToViewportPoint(root.Position)
+            local root = char.HumanoidRootPart
+            local pos, onScreen = Camera:WorldToViewportPoint(root.Position)
 
-                if onScreen then
-                    -- Draw Tracer
-                    if config.ESP.Tracers.Enabled then
-                        -- You would use Drawing.new("Line") or similar APIs
-                        -- Here you would update tracer.Position etc.
-                    end
+            if onScreen then
+                local head = char:FindFirstChild("Head")
+                local hrp = root
+                local size = Vector2.new(30, 60)
 
-                    -- Draw Box ESP
-                    if config.ESP.BoxESP.Enabled then
-                        -- Similar Drawing logic
-                    end
-
-                    -- Name Tag
-                    if config.ESP.NameESP.Enabled then
-                        -- Similar Drawing logic
-                    end
-
-                    -- Distance ESP
-                    if config.ESP.DistanceESP.Enabled then
-                        -- Similar Drawing logic
-                    end
-
-                    -- Skeleton ESP
-                    if config.ESP.Skeleton.Enabled then
-                        -- Drawing logic for bones
-                    end
+                -- Box
+                if config.ESP.BoxESP.Enabled then
+                    esp.Box.Position = Vector2.new(pos.X - size.X/2, pos.Y - size.Y/2)
+                    esp.Box.Size = size
+                    esp.Box.Visible = true
+                else
+                    esp.Box.Visible = false
                 end
+
+                -- Name
+                if config.ESP.NameESP.Enabled and head then
+                    esp.Name.Text = player.Name
+                    esp.Name.Position = Vector2.new(pos.X, pos.Y - size.Y/2 - 14)
+                    esp.Name.Visible = true
+                else
+                    esp.Name.Visible = false
+                end
+
+                -- Distance
+                if config.ESP.DistanceESP.Enabled then
+                    local distance = (LocalPlayer.Character.HumanoidRootPart.Position - root.Position).Magnitude
+                    esp.Distance.Text = "[" .. math.floor(distance) .. "m]"
+                    esp.Distance.Position = Vector2.new(pos.X, pos.Y + size.Y/2)
+                    esp.Distance.Visible = true
+                else
+                    esp.Distance.Visible = false
+                end
+
+                -- Tracer
+                if config.ESP.Tracers.Enabled then
+                    local screenOrigin = Vector2.new(pos.X, config.ESP.Tracers.Origin == "Bottom" and Camera.ViewportSize.Y or config.ESP.Tracers.Origin == "Top" and 0 or Camera.ViewportSize.Y/2)
+                    esp.Tracer.From = screenOrigin
+                    esp.Tracer.To = Vector2.new(pos.X, pos.Y)
+                    esp.Tracer.Visible = true
+                else
+                    esp.Tracer.Visible = false
+                end
+            else
+                esp.Box.Visible = false
+                esp.Name.Visible = false
+                esp.Distance.Visible = false
+                esp.Tracer.Visible = false
             end
         end)
 
-        player.CharacterRemoving:Connect(removeESP)
+        player.CharacterRemoving:Connect(function()
+            for _, obj in pairs(esp) do
+                if obj.Remove then obj:Remove() end
+            end
+            if espConnections[player] then
+                espConnections[player]:Disconnect()
+                espConnections[player] = nil
+            end
+        end)
     end
 
     for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
-            createESP(player)
+            createESPObject(player)
         end
     end
 
     Players.PlayerAdded:Connect(function(player)
-        if player ~= LocalPlayer then
-            player.CharacterAdded:Connect(function()
-                wait(1)
-                createESP(player)
-            end)
-        end
+        player.CharacterAdded:Connect(function()
+            wait(1)
+            createESPObject(player)
+        end)
     end)
 end
 
