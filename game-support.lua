@@ -41,8 +41,8 @@ return {
     },
 
     -- Placeholder Copies
-    [100000001] = {
-        name = "Da Hood Copy 1",
+    [4483381587] = {
+        name = "baseplate",
         safe = true,
         hasAntiCheat = false,
         remotes = {
