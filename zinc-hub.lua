@@ -377,44 +377,55 @@ end
 -- NoClip
 local UserInputService = game:GetService("UserInputService")
 local RunService = game:GetService("RunService")
-local noclipEnabled = false
-local noclipKey = config.NoClipFly and config.NoClipFly.NoClip.Keybind:lower() or 'n'
 
--- Toggle NoClip on key press
+local noclipEnabled = false
+local noclipKey = config.NoClip and config.NoClip.Keybind:lower() or "n"
+
+-- Helper function to toggle CanCollide on all parts
+local function setCanCollide(character, value)
+    if character then
+        for _, part in pairs(character:GetChildren()) do
+            if part:IsA("BasePart") then
+                part.CanCollide = value
+            end
+        end
+    end
+end
+
+-- Listen for key press to toggle NoClip
 UserInputService.InputBegan:Connect(function(input, gameProcessed)
     if gameProcessed then return end
     if input.KeyCode == Enum.KeyCode[noclipKey:upper()] then
         noclipEnabled = not noclipEnabled
         print("[Zinc] NoClip " .. (noclipEnabled and "Enabled" or "Disabled"))
+
+        -- Immediately set CanCollide accordingly
+        local character = LocalPlayer.Character
+        if character then
+            setCanCollide(character, not noclipEnabled)
+        end
     end
 end)
 
--- RunService loop to disable collisions on HumanoidRootPart
+-- Continuously disable collisions while NoClip is enabled
 RunService.Stepped:Connect(function()
     if noclipEnabled then
         local character = LocalPlayer.Character
         if character then
-            local hrp = character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                for _, part in pairs(character:GetChildren()) do
-                    if part:IsA("BasePart") then
-                        part.CanCollide = false
-                    end
-                end
-            end
-        end
-    else
-        -- Optionally, reset CanCollide when disabled (safe approach)
-        local character = LocalPlayer.Character
-        if character then
-            for _, part in pairs(character:GetChildren()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = true
-                end
+            -- Make sure HumanoidRootPart exists
+            if character:FindFirstChild("HumanoidRootPart") then
+                setCanCollide(character, false)
             end
         end
     end
 end)
 
+-- Optional: When character respawns, re-apply NoClip if enabled
+LocalPlayer.CharacterAdded:Connect(function(char)
+    wait(1)
+    if noclipEnabled then
+        setCanCollide(char, false)
+    end
+end)
 
 print("[Zinc] Script Loaded Successfully.")
