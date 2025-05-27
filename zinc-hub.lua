@@ -198,10 +198,10 @@ if speedwalkConfig and speedwalkConfig.Enabled then
                 isSpeedwalkOn = not isSpeedwalkOn
                 print("[Zinc] Speedwalk " .. (isSpeedwalkOn and "Enabled" or "Disabled"))
             elseif keyPressed == speedUpKey then
-                currentSpeed = currentSpeed + 5
+                currentSpeed = currentSpeed + 15
                 print("[Zinc] Speedwalk Speed increased to " .. currentSpeed)
             elseif keyPressed == speedDownKey then
-                currentSpeed = math.max(0, currentSpeed - 5)
+                currentSpeed = math.max(0, currentSpeed - 15)
                 print("[Zinc] Speedwalk Speed decreased to " .. currentSpeed)
             end
         end
