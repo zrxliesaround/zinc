@@ -222,7 +222,7 @@ if config.ESP and config.ESP.Enabled then
         }
     end
 
-    for _, player in pairs(Players:GetPlayers()) do
+    for _, player in ipairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
             createESP(player)
         end
@@ -265,106 +265,50 @@ if config.ESP and config.ESP.Enabled then
             origin = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
         end
 
-        local function getBoundingBox(model)
-            local min = Vector3.new(math.huge, math.huge, math.huge)
-            local max = Vector3.new(-math.huge, -math.huge, -math.huge)
-
-            for _, part in ipairs(model:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    local cf = part.CFrame
-                    local size = part.Size
-                    local corners = {
-                        cf.Position + cf.RightVector * size.X/2 + cf.UpVector * size.Y/2 + cf.LookVector * size.Z/2,
-                        cf.Position + cf.RightVector * size.X/2 + cf.UpVector * size.Y/2 - cf.LookVector * size.Z/2,
-                        cf.Position + cf.RightVector * size.X/2 - cf.UpVector * size.Y/2 + cf.LookVector * size.Z/2,
-                        cf.Position + cf.RightVector * size.X/2 - cf.UpVector * size.Y/2 - cf.LookVector * size.Z/2,
-                        cf.Position - cf.RightVector * size.X/2 + cf.UpVector * size.Y/2 + cf.LookVector * size.Z/2,
-                        cf.Position - cf.RightVector * size.X/2 + cf.UpVector * size.Y/2 - cf.LookVector * size.Z/2,
-                        cf.Position - cf.RightVector * size.X/2 - cf.UpVector * size.Y/2 + cf.LookVector * size.Z/2,
-                        cf.Position - cf.RightVector * size.X/2 - cf.UpVector * size.Y/2 - cf.LookVector * size.Z/2
-                    }
-
-                    for _, c in ipairs(corners) do
-                        min = Vector3.new(math.min(min.X, c.X), math.min(min.Y, c.Y), math.min(min.Z, c.Z))
-                        max = Vector3.new(math.max(max.X, c.X), math.max(max.Y, c.Y), math.max(max.Z, c.Z))
-                    end
-                end
-            end
-
-            return CFrame.new((min + max) / 2), max - min
-        end
-
         for player, esp in pairs(espObjects) do
             local char = player.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local head = char and char:FindFirstChild("Head")
             local humanoid = char and char:FindFirstChildOfClass("Humanoid")
 
-            if hrp and humanoid and humanoid.Health > 0 then
-                local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
-                if onScreen then
-                    local cf, size = getBoundingBox(char)
-                    local screenCorners = {}
+            if hrp and head and humanoid and humanoid.Health > 0 then
+                local headPos, headOnScreen = Camera:WorldToViewportPoint(head.Position)
+                local rootPos, rootOnScreen = Camera:WorldToViewportPoint(hrp.Position)
 
-                    for x = -0.5, 0.5, 1 do
-                        for y = -0.5, 0.5, 1 do
-                            for z = -0.5, 0.5, 1 do
-                                local world = cf:PointToWorldSpace(Vector3.new(x * size.X, y * size.Y, z * size.Z))
-                                local screenPos, isOnScreen = Camera:WorldToViewportPoint(world)
-                                if isOnScreen then
-                                    table.insert(screenCorners, Vector2.new(screenPos.X, screenPos.Y))
-                                end
-                            end
-                        end
-                    end
+                if headOnScreen and rootOnScreen then
+                    local boxHeight = math.abs(headPos.Y - rootPos.Y) * 2
+                    local boxWidth = boxHeight / 2
+                    local boxX = rootPos.X - boxWidth / 2
+                    local boxY = headPos.Y - (boxHeight / 2)
 
-                    if #screenCorners == 8 then
-                        local minX, minY = math.huge, math.huge
-                        local maxX, maxY = -math.huge, -math.huge
+                    -- Box
+                    esp.Box.Visible = config.ESP.BoxESP.Enabled
+                    esp.Box.Color = config.ESP.BoxESP.Color or Color3.fromRGB(220, 220, 220)
+                    esp.Box.Thickness = config.ESP.BoxESP.Thickness or 2
+                    esp.Box.Filled = config.ESP.BoxESP.Filled or false
+                    esp.Box.Transparency = config.ESP.BoxESP.Transparency or 0.6
+                    esp.Box.Size = Vector2.new(boxWidth, boxHeight)
+                    esp.Box.Position = Vector2.new(boxX, boxY)
 
-                        for _, v in ipairs(screenCorners) do
-                            minX = math.min(minX, v.X)
-                            minY = math.min(minY, v.Y)
-                            maxX = math.max(maxX, v.X)
-                            maxY = math.max(maxY, v.Y)
-                        end
+                    -- Tracer
+                    esp.Tracer.Visible = config.ESP.Tracers.Enabled
+                    esp.Tracer.Color = config.ESP.Tracers.Color or Color3.fromRGB(200, 200, 200)
+                    esp.Tracer.Thickness = config.ESP.Tracers.Thickness or 1
+                    esp.Tracer.From = origin
+                    esp.Tracer.To = Vector2.new(rootPos.X, rootPos.Y)
 
-                        local width = maxX - minX
-                        local height = maxY - minY
+                    -- Name
+                    esp.Name.Visible = config.ESP.NameESP.Enabled
+                    esp.Name.Text = player.Name
+                    esp.Name.Color = config.ESP.NameESP.Color or Color3.fromRGB(230, 230, 230)
+                    esp.Name.Position = Vector2.new(rootPos.X, boxY - 15)
 
-                        -- Box
-                        esp.Box.Visible = config.ESP.BoxESP.Enabled
-                        esp.Box.Color = config.ESP.BoxESP.Color or Color3.fromRGB(220,220,220)
-                        esp.Box.Thickness = config.ESP.BoxESP.Thickness or 2
-                        esp.Box.Filled = config.ESP.BoxESP.Filled or false
-                        esp.Box.Transparency = config.ESP.BoxESP.Transparency or 0.6
-                        esp.Box.Size = Vector2.new(width, height)
-                        esp.Box.Position = Vector2.new(minX, minY)
-
-                        -- Tracer
-                        esp.Tracer.Visible = config.ESP.Tracers.Enabled
-                        esp.Tracer.Color = config.ESP.Tracers.Color or Color3.fromRGB(200,200,200)
-                        esp.Tracer.Thickness = config.ESP.Tracers.Thickness or 1
-                        esp.Tracer.From = origin
-                        esp.Tracer.To = Vector2.new(pos.X, pos.Y)
-
-                        -- Name
-                        esp.Name.Visible = config.ESP.NameESP.Enabled
-                        esp.Name.Text = player.Name
-                        esp.Name.Color = config.ESP.NameESP.Color or Color3.fromRGB(230,230,230)
-                        esp.Name.Position = Vector2.new(pos.X, minY - 15)
-
-                        -- Distance
-                        local dist = (Camera.CFrame.Position - hrp.Position).Magnitude
-                        esp.Distance.Visible = config.ESP.DistanceESP.Enabled
-                        esp.Distance.Text = string.format("%.0f", dist)
-                        esp.Distance.Color = config.ESP.DistanceESP.Color or Color3.fromRGB(230,230,230)
-                        esp.Distance.Position = Vector2.new(pos.X, maxY + 2)
-                    else
-                        esp.Box.Visible = false
-                        esp.Tracer.Visible = false
-                        esp.Name.Visible = false
-                        esp.Distance.Visible = false
-                    end
+                    -- Distance
+                    local dist = (Camera.CFrame.Position - hrp.Position).Magnitude
+                    esp.Distance.Visible = config.ESP.DistanceESP.Enabled
+                    esp.Distance.Text = string.format("%.0f", dist)
+                    esp.Distance.Color = config.ESP.DistanceESP.Color or Color3.fromRGB(230, 230, 230)
+                    esp.Distance.Position = Vector2.new(rootPos.X, boxY + boxHeight + 2)
                 else
                     esp.Box.Visible = false
                     esp.Tracer.Visible = false
@@ -380,3 +324,4 @@ if config.ESP and config.ESP.Enabled then
         end
     end)
 end
+
