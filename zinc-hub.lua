@@ -316,25 +316,66 @@ local function createESP(player)
         end
 
         -- BoxESP
-        if config.ESP.BoxESP.Enabled then
-            local parts = {}
-            for _, p in ipairs(char:GetChildren()) do
-                if p:IsA("BasePart") then table.insert(parts, p) end
-            end
-            if #parts > 0 then
-                local cf, size = getBoundingBox(parts)
-                local screenPos, visible = Camera:WorldToViewportPoint(cf.Position)
-                local scaleFactor = Camera:WorldToViewportPoint(cf.Position + Vector3.new(0, size.Y/2, 0))
-                local height = math.abs(screenPos.Y - scaleFactor.Y) * 2
-                local width = height / 2
+       if config.ESP.BoxESP.Enabled then
+    -- Get character bounding box corners
+    local char = player.Character
+    local rootPart = char:FindFirstChild("HumanoidRootPart")
+    local humanoid = char:FindFirstChildOfClass("Humanoid")
 
-                esp.Box.Position = Vector2.new(screenPos.X - width/2, screenPos.Y - height/2)
-                esp.Box.Size = Vector2.new(width, height)
-                esp.Box.Visible = true
+    if rootPart and humanoid then
+        local size = humanoid.HipHeight * 2 -- Rough height approximation
+        local width = 2 -- Approximate width of torso
+
+        -- Create 8 corner points of the hitbox in 3D space
+        local corners = {
+            Vector3.new(-width,  size, -width),
+            Vector3.new( width,  size, -width),
+            Vector3.new(-width,  size,  width),
+            Vector3.new( width,  size,  width),
+            Vector3.new(-width, -size, -width),
+            Vector3.new( width, -size, -width),
+            Vector3.new(-width, -size,  width),
+            Vector3.new( width, -size,  width)
+        }
+
+        -- Translate corners to world position of rootPart
+        for i=1,#corners do
+            corners[i] = rootPart.CFrame:PointToWorldSpace(corners[i])
+        end
+
+        -- Project corners to 2D screen points
+        local screenCorners = {}
+        local minX, minY = math.huge, math.huge
+        local maxX, maxY = -math.huge, -math.huge
+        local onScreen = false
+
+        for _, corner in ipairs(corners) do
+            local screenPos, visible = Camera:WorldToViewportPoint(corner)
+            if visible then
+                onScreen = true
             end
+            screenPos = Vector2.new(screenPos.X, screenPos.Y)
+            minX = math.min(minX, screenPos.X)
+            maxX = math.max(maxX, screenPos.X)
+            minY = math.min(minY, screenPos.Y)
+            maxY = math.max(maxY, screenPos.Y)
+        end
+
+        if onScreen then
+            local boxPos = Vector2.new(minX, minY)
+            local boxSize = Vector2.new(maxX - minX, maxY - minY)
+            esp.Box.Position = boxPos
+            esp.Box.Size = boxSize
+            esp.Box.Visible = true
         else
             esp.Box.Visible = false
         end
+    else
+        esp.Box.Visible = false
+    end
+else
+    esp.Box.Visible = false
+end
 
         -- NameESP
         if config.ESP.NameESP.Enabled and head then
