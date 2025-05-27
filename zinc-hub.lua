@@ -103,8 +103,8 @@ if speedConfig and speedConfig.Enabled then
     local toggled = false
     local speed = speedConfig.DefaultSpeed or 35
     local toggleKey = (speedConfig.Keybinds and speedConfig.Keybinds.ToggleMovement or 'z'):lower()
-    local speedUpKey = (speedConfig.Keybinds and speedConfig.Keybinds['Speed +15'] or 'm'):lower()
-    local speedDownKey = (speedConfig.Keybinds and speedConfig.Keybinds['Speed -15'] or 'n'):lower()
+    local speedUpKey = (speedConfig.Keybinds and speedConfig.Keybinds['Speed +5'] or 'm'):lower()
+    local speedDownKey = (speedConfig.Keybinds and speedConfig.Keybinds['Speed -5'] or 'n'):lower()
 
     UserInputService.InputBegan:Connect(function(input, gp)
         if gp then return end
