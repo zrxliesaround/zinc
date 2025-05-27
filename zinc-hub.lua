@@ -8,10 +8,14 @@ local Camera = workspace.CurrentCamera
 -- Utilities
 local function getClosestPlayer(range)
     local closest, dist = nil, range or math.huge
+    if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        return nil
+    end
+    local localPos = LocalPlayer.Character.HumanoidRootPart.Position
     for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
             local pos = player.Character.HumanoidRootPart.Position
-            local mag = (LocalPlayer.Character.HumanoidRootPart.Position - pos).Magnitude
+            local mag = (localPos - pos).Magnitude
             if mag < dist then
                 closest, dist = player, mag
             end
@@ -23,6 +27,7 @@ end
 local function predict(pos, vel, pred)
     return pos + (vel * pred)
 end 
+
 -- Silent Aim
 if config['Silent Aim'] and config['Silent Aim'].Enabled then
     local mt = getrawmetatable(game)
@@ -35,10 +40,17 @@ if config['Silent Aim'] and config['Silent Aim'].Enabled then
         if method == "FireServer" and tostring(self):lower():find("shoot") then
             local target = getClosestPlayer(config.Range and config.Range['Silent Aim'] or 100)
             if target and target.Character then
-                local partName = (config['Silent Aim']['Hit Location'] and config['Silent Aim']['Hit Location'].Parts and config['Silent Aim']['Hit Location'].Parts[1]) or "Head"
+                local hitLocConfig = config['Silent Aim']['Hit Location']
+                local partName = "Head"
+                if hitLocConfig and hitLocConfig.Parts and #hitLocConfig.Parts > 0 then
+                    partName = hitLocConfig.Parts[1]
+                end
                 local part = target.Character:FindFirstChild(partName)
                 if part then
-                    local predVal = (config['Silent Aim'].Prediction and config['Silent Aim'].Prediction.Sets and config['Silent Aim'].Prediction.Sets.X) or 0
+                    local predVal = 0
+                    if config['Silent Aim'].Prediction and config['Silent Aim'].Prediction.Sets and config['Silent Aim'].Prediction.Sets.X then
+                        predVal = config['Silent Aim'].Prediction.Sets.X
+                    end
                     args[2] = predict(part.Position, part.Velocity, predVal)
                     return oldNamecall(self, unpack(args))
                 end
@@ -54,7 +66,7 @@ if config['Camlock'] and config['Camlock'].Enabled then
     local camlockActive = false
     local camlockTarget = nil
     local camlockPart = nil
-    local toggleKey = config['Camlock'].Keybind:lower()
+    local toggleKey = (config['Camlock'].Keybind or "c"):lower()
     local camera = workspace.CurrentCamera
 
     local function getClosestToCrosshair(maxDistance)
@@ -110,13 +122,12 @@ end
 
 -- Trigger Bot
 if config['Trigger bot'] and config['Trigger bot'].Enabled then
-    local UserInputService = game:GetService("UserInputService")
-    local RunService = game:GetService("RunService")
+    local mouseDown = false
 
     local function isWeaponAllowed()
         local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
         if not tool then return false end
-        for _, w in pairs(config['Trigger bot'].Weapons) do
+        for _, w in pairs(config['Trigger bot'].Weapons or {}) do
             if tool.Name == w then
                 return true
             end
@@ -125,18 +136,16 @@ if config['Trigger bot'] and config['Trigger bot'].Enabled then
     end
 
     local function checkHitParts(hitPart)
-        if config['Trigger bot']['HitParts'].Type == false then
+        if not config['Trigger bot']['HitParts'] or config['Trigger bot']['HitParts'].Type == false then
             return true -- ignore parts filtering
         end
-        for _, partName in pairs(config['Trigger bot']['HitParts'].Parts) do
+        for _, partName in pairs(config['Trigger bot']['HitParts'].Parts or {}) do
             if hitPart.Name == partName then
                 return true
             end
         end
         return false
     end
-
-    local mouseDown = false
 
     UserInputService.InputBegan:Connect(function(input, gameProcessed)
         if gameProcessed then return end
@@ -152,7 +161,7 @@ if config['Trigger bot'] and config['Trigger bot'].Enabled then
 
     RunService.RenderStepped:Connect(function()
         if not config['Trigger bot'].Enabled then return end
-        if config['Trigger bot']['Keybind']['Keybind Mode']:lower() == "hold" and not mouseDown then return end
+        if config['Trigger bot']['Keybind'] and config['Trigger bot']['Keybind']['Keybind Mode'] and config['Trigger bot']['Keybind']['Keybind Mode']:lower() == "hold" and not mouseDown then return end
         if not isWeaponAllowed() then return end
 
         local rayOrigin = Camera.CFrame.Position
@@ -166,8 +175,7 @@ if config['Trigger bot'] and config['Trigger bot'].Enabled then
         if raycastResult and raycastResult.Instance and raycastResult.Instance.Parent then
             local hitHumanoid = raycastResult.Instance.Parent:FindFirstChildOfClass("Humanoid")
             if hitHumanoid and hitHumanoid.Health > 0 and checkHitParts(raycastResult.Instance) then
-                -- Fire click event after delay
-                task.delay(config['Trigger bot'].Delay.Value, function()
+                task.delay(config['Trigger bot'].Delay and config['Trigger bot'].Delay.Value or 0, function()
                     mouse1click()
                 end)
             end
@@ -190,9 +198,9 @@ if speedwalkConfig and speedwalkConfig.Enabled then
         if gameProcessed then return end
         if input.UserInputType == Enum.UserInputType.Keyboard then
             local keyPressed = input.KeyCode.Name:lower()
-            local toggleKey = speedwalkConfig.Keybinds.ToggleMovement and speedwalkConfig.Keybinds.ToggleMovement:lower() or "z"
-            local speedUpKey = speedwalkConfig.Keybinds["Speed +5"] and speedwalkConfig.Keybinds["Speed +5"]:lower() or "m"
-            local speedDownKey = speedwalkConfig.Keybinds["Speed -5"] and speedwalkConfig.Keybinds["Speed -5"]:lower() or "n"
+            local toggleKey = (speedwalkConfig.Keybinds and speedwalkConfig.Keybinds.ToggleMovement and speedwalkConfig.Keybinds.ToggleMovement:lower()) or "z"
+            local speedUpKey = (speedwalkConfig.Keybinds and speedwalkConfig.Keybinds["Speed +5"] and speedwalkConfig.Keybinds["Speed +5"]:lower()) or "m"
+            local speedDownKey = (speedwalkConfig.Keybinds and speedwalkConfig.Keybinds["Speed -5"] and speedwalkConfig.Keybinds["Speed -5"]:lower()) or "n"
 
             if keyPressed == toggleKey then
                 isSpeedwalkOn = not isSpeedwalkOn
@@ -220,64 +228,12 @@ if speedwalkConfig and speedwalkConfig.Enabled then
 end
 
 -- ESP
-local Players = game:GetService("Players")
-local RunService = game:GetService("RunService")
-local LocalPlayer = Players.LocalPlayer
-local Camera = workspace.CurrentCamera
-
--- Config reference
-local config = getgenv().zinc
-if not config or not config.ESP then return end
-
--- ESP store
 local espConnections = {}
 local espObjects = {}
 
--- Helper: get all visible character parts for bounding box (unused now but kept)
-local function getCharacterParts(character)
-    local parts = {}
-    for _, partName in pairs({"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso", "LeftUpperArm", "RightUpperArm", "LeftLowerArm", "RightLowerArm", "LeftHand", "RightHand", "LeftUpperLeg", "RightUpperLeg", "LeftLowerLeg", "RightLowerLeg", "LeftFoot", "RightFoot"}) do
-        local part = character:FindFirstChild(partName)
-        if part and part:IsA("BasePart") then
-            table.insert(parts, part)
-        end
-    end
-    return parts
-end
-
--- Get bounding box CFrame and Size for a set of parts (unused now but kept)
-local function getBoundingBox(parts)
-    local minVec = Vector3.new(math.huge, math.huge, math.huge)
-    local maxVec = Vector3.new(-math.huge, -math.huge, -math.huge)
-
-    for _, part in pairs(parts) do
-        local cf = part.CFrame
-        local size = part.Size
-        -- Calculate corners of this part
-        local corners = {
-            cf * Vector3.new(-size.X/2, -size.Y/2, -size.Z/2),
-            cf * Vector3.new(-size.X/2, -size.Y/2,  size.Z/2),
-            cf * Vector3.new(-size.X/2,  size.Y/2, -size.Z/2),
-            cf * Vector3.new(-size.X/2,  size.Y/2,  size.Z/2),
-            cf * Vector3.new( size.X/2, -size.Y/2, -size.Z/2),
-            cf * Vector3.new( size.X/2, -size.Y/2,  size.Z/2),
-            cf * Vector3.new( size.X/2,  size.Y/2, -size.Z/2),
-            cf * Vector3.new( size.X/2,  size.Y/2,  size.Z/2),
-        }
-        for _, corner in pairs(corners) do
-            minVec = Vector3.new(math.min(minVec.X, corner.X), math.min(minVec.Y, corner.Y), math.min(minVec.Z, corner.Z))
-            maxVec = Vector3.new(math.max(maxVec.X, corner.X), math.max(maxVec.Y, corner.Y), math.max(maxVec.Z, corner.Z))
-        end
-    end
-
-    local center = (minVec + maxVec) / 2
-    local size = maxVec - minVec
-    return CFrame.new(center), size
-end
-
--- Create ESP drawings for player
 local function createESP(player)
     if espObjects[player] then return end
+    if not player.Character then return end
 
     local esp = {
         Box = Drawing.new("Square"),
@@ -339,7 +295,7 @@ local function createESP(player)
             return
         end
 
-        -- BoxESP (fixed to only root hitbox)
+        -- BoxESP
         if boxCfg.Enabled then
             local size = root.Size
             local cf = root.CFrame
@@ -347,100 +303,4 @@ local function createESP(player)
             local corners3D = {
                 cf * Vector3.new(-size.X/2,  size.Y/2, -size.Z/2),
                 cf * Vector3.new( size.X/2,  size.Y/2, -size.Z/2),
-                cf * Vector3.new(-size.X/2,  size.Y/2,  size.Z/2),
-                cf * Vector3.new( size.X/2,  size.Y/2,  size.Z/2),
-                cf * Vector3.new(-size.X/2, -size.Y/2, -size.Z/2),
-                cf * Vector3.new( size.X/2, -size.Y/2, -size.Z/2),
-                cf * Vector3.new(-size.X/2, -size.Y/2,  size.Z/2),
-                cf * Vector3.new( size.X/2, -size.Y/2,  size.Z/2),
-            }
-
-            local minX, minY = math.huge, math.huge
-            local maxX, maxY = -math.huge, -math.huge
-            local visible = false
-
-            for _, corner in pairs(corners3D) do
-                local screenPos, visibleOnScreen = Camera:WorldToViewportPoint(corner)
-                if visibleOnScreen then visible = true end
-                screenPos = Vector2.new(screenPos.X, screenPos.Y)
-                minX = math.min(minX, screenPos.X)
-                maxX = math.max(maxX, screenPos.X)
-                minY = math.min(minY, screenPos.Y)
-                maxY = math.max(maxY, screenPos.Y)
-            end
-
-            if visible then
-                esp.Box.Position = Vector2.new(minX, minY)
-                esp.Box.Size = Vector2.new(maxX - minX, maxY - minY)
-                esp.Box.Visible = true
-            else
-                esp.Box.Visible = false
-            end
-        else
-            esp.Box.Visible = false
-        end
-
-        -- NameESP
-        if nameCfg.Enabled and head then
-            local headPos, onScreenHead = Camera:WorldToViewportPoint(head.Position + Vector3.new(0, 0.5, 0))
-            if onScreenHead then
-                esp.Name.Text = player.Name
-                esp.Name.Position = Vector2.new(headPos.X, headPos.Y - 14)
-                esp.Name.Visible = true
-            else
-                esp.Name.Visible = false
-            end
-        else
-            esp.Name.Visible = false
-        end
-
-        -- DistanceESP
-        if distCfg.Enabled and LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
-            local dist = (LocalPlayer.Character.HumanoidRootPart.Position - root.Position).Magnitude
-            esp.Distance.Text = "[" .. math.floor(dist) .. "m]"
-            esp.Distance.Position = Vector2.new(rootPos.X, rootPos.Y + 20)
-            esp.Distance.Visible = true
-        else
-            esp.Distance.Visible = false
-        end
-
-        -- Tracer
-        if tracerCfg.Enabled then
-            local originY = (tracerCfg.Origin == "Bottom" and Camera.ViewportSize.Y)
-                or (tracerCfg.Origin == "Top" and 0)
-                or (Camera.ViewportSize.Y / 2)
-            esp.Tracer.From = Vector2.new(Camera.ViewportSize.X / 2, originY)
-            esp.Tracer.To = Vector2.new(rootPos.X, rootPos.Y)
-            esp.Tracer.Visible = true
-        else
-            esp.Tracer.Visible = false
-        end
-    end)
-
-    player.CharacterRemoving:Connect(function()
-        for _, obj in pairs(esp) do if obj.Remove then obj:Remove() end end
-        if espConnections[player] then
-            espConnections[player]:Disconnect()
-            espConnections[player] = nil
-        end
-        espObjects[player] = nil
-    end)
-end
-
--- Handle existing players
-for _, player in ipairs(Players:GetPlayers()) do
-    if player ~= LocalPlayer then
-        if player.Character then
-            createESP(player)
-        end
-        player.CharacterAdded:Connect(function()
-            wait(1)
-            createESP(player)
-        end)
-    end
-end
-
--- Handle new players
-Players.PlayerAdded:Connect
-
-print("[Zinc] Script Loaded Successfully.")
+                cf * Vector3.new(-size.X/2,  size
