@@ -218,6 +218,7 @@ if speedwalkConfig and speedwalkConfig.Enabled then
         end
     end)
 end
+
 -- ESP
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -232,7 +233,7 @@ if not config or not config.ESP then return end
 local espConnections = {}
 local espObjects = {}
 
--- Helper: get all visible character parts for bounding box
+-- Helper: get all visible character parts for bounding box (unused now but kept)
 local function getCharacterParts(character)
     local parts = {}
     for _, partName in pairs({"Head", "HumanoidRootPart", "UpperTorso", "LowerTorso", "LeftUpperArm", "RightUpperArm", "LeftLowerArm", "RightLowerArm", "LeftHand", "RightHand", "LeftUpperLeg", "RightUpperLeg", "LeftLowerLeg", "RightLowerLeg", "LeftFoot", "RightFoot"}) do
@@ -244,7 +245,7 @@ local function getCharacterParts(character)
     return parts
 end
 
--- Get bounding box CFrame and Size for a set of parts
+-- Get bounding box CFrame and Size for a set of parts (unused now but kept)
 local function getBoundingBox(parts)
     local minVec = Vector3.new(math.huge, math.huge, math.huge)
     local maxVec = Vector3.new(-math.huge, -math.huge, -math.huge)
@@ -338,43 +339,40 @@ local function createESP(player)
             return
         end
 
-        -- BoxESP
+        -- BoxESP (fixed to only root hitbox)
         if boxCfg.Enabled then
-            local parts = getCharacterParts(char)
-            if #parts > 0 then
-                local bboxCFrame, bboxSize = getBoundingBox(parts)
-                local corners3D = {
-                    bboxCFrame * Vector3.new(-bboxSize.X/2,  bboxSize.Y/2, -bboxSize.Z/2),
-                    bboxCFrame * Vector3.new( bboxSize.X/2,  bboxSize.Y/2, -bboxSize.Z/2),
-                    bboxCFrame * Vector3.new(-bboxSize.X/2,  bboxSize.Y/2,  bboxSize.Z/2),
-                    bboxCFrame * Vector3.new( bboxSize.X/2,  bboxSize.Y/2,  bboxSize.Z/2),
-                    bboxCFrame * Vector3.new(-bboxSize.X/2, -bboxSize.Y/2, -bboxSize.Z/2),
-                    bboxCFrame * Vector3.new( bboxSize.X/2, -bboxSize.Y/2, -bboxSize.Z/2),
-                    bboxCFrame * Vector3.new(-bboxSize.X/2, -bboxSize.Y/2,  bboxSize.Z/2),
-                    bboxCFrame * Vector3.new( bboxSize.X/2, -bboxSize.Y/2,  bboxSize.Z/2),
-                }
+            local size = root.Size
+            local cf = root.CFrame
 
-                local minX, minY = math.huge, math.huge
-                local maxX, maxY = -math.huge, -math.huge
-                local visible = false
+            local corners3D = {
+                cf * Vector3.new(-size.X/2,  size.Y/2, -size.Z/2),
+                cf * Vector3.new( size.X/2,  size.Y/2, -size.Z/2),
+                cf * Vector3.new(-size.X/2,  size.Y/2,  size.Z/2),
+                cf * Vector3.new( size.X/2,  size.Y/2,  size.Z/2),
+                cf * Vector3.new(-size.X/2, -size.Y/2, -size.Z/2),
+                cf * Vector3.new( size.X/2, -size.Y/2, -size.Z/2),
+                cf * Vector3.new(-size.X/2, -size.Y/2,  size.Z/2),
+                cf * Vector3.new( size.X/2, -size.Y/2,  size.Z/2),
+            }
 
-                for _, corner in pairs(corners3D) do
-                    local screenPos, visibleOnScreen = Camera:WorldToViewportPoint(corner)
-                    if visibleOnScreen then visible = true end
-                    screenPos = Vector2.new(screenPos.X, screenPos.Y)
-                    minX = math.min(minX, screenPos.X)
-                    maxX = math.max(maxX, screenPos.X)
-                    minY = math.min(minY, screenPos.Y)
-                    maxY = math.max(maxY, screenPos.Y)
-                end
+            local minX, minY = math.huge, math.huge
+            local maxX, maxY = -math.huge, -math.huge
+            local visible = false
 
-                if visible then
-                    esp.Box.Position = Vector2.new(minX, minY)
-                    esp.Box.Size = Vector2.new(maxX - minX, maxY - minY)
-                    esp.Box.Visible = true
-                else
-                    esp.Box.Visible = false
-                end
+            for _, corner in pairs(corners3D) do
+                local screenPos, visibleOnScreen = Camera:WorldToViewportPoint(corner)
+                if visibleOnScreen then visible = true end
+                screenPos = Vector2.new(screenPos.X, screenPos.Y)
+                minX = math.min(minX, screenPos.X)
+                maxX = math.max(maxX, screenPos.X)
+                minY = math.min(minY, screenPos.Y)
+                maxY = math.max(maxY, screenPos.Y)
+            end
+
+            if visible then
+                esp.Box.Position = Vector2.new(minX, minY)
+                esp.Box.Size = Vector2.new(maxX - minX, maxY - minY)
+                esp.Box.Visible = true
             else
                 esp.Box.Visible = false
             end
@@ -443,11 +441,6 @@ for _, player in ipairs(Players:GetPlayers()) do
 end
 
 -- Handle new players
-Players.PlayerAdded:Connect(function(player)
-    player.CharacterAdded:Connect(function()
-        wait(1)
-        createESP(player)
-    end)
-end)
+Players.PlayerAdded:Connect
 
 print("[Zinc] Script Loaded Successfully.")
