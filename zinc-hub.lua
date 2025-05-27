@@ -103,8 +103,8 @@ if speedConfig and speedConfig.Enabled then
     local toggled = false
     local speed = speedConfig.DefaultSpeed or 35
     local toggleKey = (speedConfig.Keybinds and speedConfig.Keybinds.ToggleMovement or 'z'):lower()
-    local speedUpKey = (speedConfig.Keybinds and speedConfig.Keybinds['Speed +5'] or 'm'):lower()
-    local speedDownKey = (speedConfig.Keybinds and speedConfig.Keybinds['Speed -5'] or 'n'):lower()
+    local speedUpKey = (speedConfig.Keybinds and speedConfig.Keybinds['Speed +15'] or 'm'):lower()
+    local speedDownKey = (speedConfig.Keybinds and speedConfig.Keybinds['Speed -15'] or 'n'):lower()
 
     UserInputService.InputBegan:Connect(function(input, gp)
         if gp then return end
@@ -114,10 +114,10 @@ if speedConfig and speedConfig.Enabled then
                 toggled = not toggled
                 print("[Zinc] Speedwalk toggled:", toggled)
             elseif key == speedUpKey then
-                speed = speed + 5
+                speed = speed + 15
                 print("[Zinc] Speed increased to:", speed)
             elseif key == speedDownKey then
-                speed = math.max(0, speed - 5)
+                speed = math.max(0, speed - 15)
                 print("[Zinc] Speed decreased to:", speed)
             end
         end
