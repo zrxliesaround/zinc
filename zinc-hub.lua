@@ -188,41 +188,48 @@ if config.ESP and config.ESP.Enabled then
 
         local box = Drawing.new("Square")
         box.Visible = false
-        box.Color = Color3.fromRGB(220, 220, 220)
-        box.Thickness = 2
-        box.Filled = false
-        box.Transparency = 0.6
+        box.Color = config.ESP.BoxESP.Color or Color3.fromRGB(255, 255, 255)
+        box.Thickness = config.ESP.BoxESP.Thickness or 1
+        box.Filled = config.ESP.BoxESP.Filled or false
+        box.Transparency = config.ESP.BoxESP.Transparency or 0.5
+
+        local healthBar = Drawing.new("Square")
+        healthBar.Visible = false
+        healthBar.Thickness = 1
+        healthBar.Filled = true
+        healthBar.Color = Color3.fromRGB(0, 255, 0)
 
         local tracer = Drawing.new("Line")
         tracer.Visible = false
-        tracer.Color = Color3.fromRGB(200, 200, 200)
-        tracer.Thickness = 1
+        tracer.Thickness = config.ESP.Tracers.Thickness or 1
+        tracer.Color = config.ESP.Tracers.Color or Color3.fromRGB(255, 255, 255)
 
         local name = Drawing.new("Text")
         name.Visible = false
-        name.Color = Color3.fromRGB(230, 230, 230)
-        name.Outline = true
-        name.Size = 14
         name.Center = true
+        name.Outline = config.ESP.NameESP.Outline or true
+        name.Size = config.ESP.NameESP.TextSize or 13
+        name.Color = config.ESP.NameESP.Color or Color3.fromRGB(255, 255, 255)
         name.Font = 2
 
         local distance = Drawing.new("Text")
         distance.Visible = false
-        distance.Color = Color3.fromRGB(230, 230, 230)
-        distance.Outline = true
-        distance.Size = 14
         distance.Center = true
+        distance.Outline = true
+        distance.Size = config.ESP.DistanceESP.TextSize or 13
+        distance.Color = config.ESP.DistanceESP.Color or Color3.fromRGB(255, 255, 255)
         distance.Font = 2
 
         espObjects[player] = {
             Box = box,
+            Health = healthBar,
             Tracer = tracer,
             Name = name,
             Distance = distance
         }
     end
 
-    for _, player in ipairs(Players:GetPlayers()) do
+    for _, player in pairs(Players:GetPlayers()) do
         if player ~= LocalPlayer then
             createESP(player)
         end
@@ -246,80 +253,69 @@ if config.ESP and config.ESP.Enabled then
     RunService.RenderStepped:Connect(function()
         if not config.ESP.Enabled then
             for _, esp in pairs(espObjects) do
-                esp.Box.Visible = false
-                esp.Tracer.Visible = false
-                esp.Name.Visible = false
-                esp.Distance.Visible = false
+                for _, obj in pairs(esp) do
+                    obj.Visible = false
+                end
             end
             return
         end
 
-        local origin
-        if config.ESP.Tracers.Origin == "Bottom" then
-            origin = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
-        elseif config.ESP.Tracers.Origin == "Center" then
-            origin = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2)
-        elseif config.ESP.Tracers.Origin == "Top" then
-            origin = Vector2.new(Camera.ViewportSize.X / 2, 0)
-        else
-            origin = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
-        end
+        local originMap = {
+            Bottom = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y),
+            Center = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y / 2),
+            Top = Vector2.new(Camera.ViewportSize.X / 2, 0)
+        }
+        local origin = originMap[config.ESP.Tracers.Origin] or originMap.Bottom
 
         for player, esp in pairs(espObjects) do
             local char = player.Character
             local hrp = char and char:FindFirstChild("HumanoidRootPart")
-            local head = char and char:FindFirstChild("Head")
             local humanoid = char and char:FindFirstChildOfClass("Humanoid")
 
-            if hrp and head and humanoid and humanoid.Health > 0 then
-                local headPos, headOnScreen = Camera:WorldToViewportPoint(head.Position)
-                local rootPos, rootOnScreen = Camera:WorldToViewportPoint(hrp.Position)
+            if hrp and humanoid and humanoid.Health > 0 then
+                local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+                if onScreen then
+                    local height = 90
+                    local width = 40
+                    local boxPos = Vector2.new(pos.X - width / 2, pos.Y - height / 2)
 
-                if headOnScreen and rootOnScreen then
-                    local boxHeight = math.abs(headPos.Y - rootPos.Y) * 2
-                    local boxWidth = boxHeight / 2
-                    local boxX = rootPos.X - boxWidth / 2
-                    local boxY = headPos.Y - (boxHeight / 2)
-
-                    -- Box
+                    -- Box ESP
+                    esp.Box.Size = Vector2.new(width, height)
+                    esp.Box.Position = boxPos
                     esp.Box.Visible = config.ESP.BoxESP.Enabled
-                    esp.Box.Color = config.ESP.BoxESP.Color or Color3.fromRGB(220, 220, 220)
-                    esp.Box.Thickness = config.ESP.BoxESP.Thickness or 2
-                    esp.Box.Filled = config.ESP.BoxESP.Filled or false
-                    esp.Box.Transparency = config.ESP.BoxESP.Transparency or 0.6
-                    esp.Box.Size = Vector2.new(boxWidth, boxHeight)
-                    esp.Box.Position = Vector2.new(boxX, boxY)
 
-                    -- Tracer
-                    esp.Tracer.Visible = config.ESP.Tracers.Enabled
-                    esp.Tracer.Color = config.ESP.Tracers.Color or Color3.fromRGB(200, 200, 200)
-                    esp.Tracer.Thickness = config.ESP.Tracers.Thickness or 1
+                    -- Health Bar
+                    local healthPercent = humanoid.Health / humanoid.MaxHealth
+                    local barHeight = height * healthPercent
+                    esp.Health.Size = Vector2.new(3, barHeight)
+                    esp.Health.Position = Vector2.new(boxPos.X - 5, boxPos.Y + (height - barHeight))
+                    esp.Health.Color = Color3.fromRGB(255 - (healthPercent * 255), healthPercent * 255, 0)
+                    esp.Health.Visible = config.ESP.BoxESP.Enabled
+
+                    -- Tracers
                     esp.Tracer.From = origin
-                    esp.Tracer.To = Vector2.new(rootPos.X, rootPos.Y)
+                    esp.Tracer.To = Vector2.new(pos.X, pos.Y + height / 2)
+                    esp.Tracer.Visible = config.ESP.Tracers.Enabled
 
                     -- Name
-                    esp.Name.Visible = config.ESP.NameESP.Enabled
                     esp.Name.Text = player.Name
-                    esp.Name.Color = config.ESP.NameESP.Color or Color3.fromRGB(230, 230, 230)
-                    esp.Name.Position = Vector2.new(rootPos.X, boxY - 15)
+                    esp.Name.Position = Vector2.new(pos.X, boxPos.Y - 16)
+                    esp.Name.Visible = config.ESP.NameESP.Enabled
 
                     -- Distance
                     local dist = (Camera.CFrame.Position - hrp.Position).Magnitude
+                    esp.Distance.Text = tostring(math.floor(dist))
+                    esp.Distance.Position = Vector2.new(pos.X, boxPos.Y + height + 2)
                     esp.Distance.Visible = config.ESP.DistanceESP.Enabled
-                    esp.Distance.Text = string.format("%.0f", dist)
-                    esp.Distance.Color = config.ESP.DistanceESP.Color or Color3.fromRGB(230, 230, 230)
-                    esp.Distance.Position = Vector2.new(rootPos.X, boxY + boxHeight + 2)
                 else
-                    esp.Box.Visible = false
-                    esp.Tracer.Visible = false
-                    esp.Name.Visible = false
-                    esp.Distance.Visible = false
+                    for _, obj in pairs(esp) do
+                        obj.Visible = false
+                    end
                 end
             else
-                esp.Box.Visible = false
-                esp.Tracer.Visible = false
-                esp.Name.Visible = false
-                esp.Distance.Visible = false
+                for _, obj in pairs(esp) do
+                    obj.Visible = false
+                end
             end
         end
     end)
