@@ -273,15 +273,26 @@ if config.ESP and config.ESP.Enabled then
             local humanoid = char and char:FindFirstChildOfClass("Humanoid")
 
             if hrp and humanoid and humanoid.Health > 0 then
-                local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
-                if onScreen then
-                    local height = 90
-                    local width = 40
-                    local boxPos = Vector2.new(pos.X - width / 2, pos.Y - height / 2)
+                local size = Vector3.new(4, 6, 0) -- approximate hitbox size (adjust if needed)
+
+                local topLeft = hrp.Position + Vector3.new(-size.X/2, size.Y/2, 0)
+                local bottomRight = hrp.Position + Vector3.new(size.X/2, -size.Y/2, 0)
+
+                local tl, onScreen1 = Camera:WorldToViewportPoint(topLeft)
+                local br, onScreen2 = Camera:WorldToViewportPoint(bottomRight)
+
+                if onScreen1 and onScreen2 then
+                    local width = math.abs(tl.X - br.X)
+                    local height = math.abs(tl.Y - br.Y)
+                    local boxPos = Vector2.new(math.min(tl.X, br.X), math.min(tl.Y, br.Y))
 
                     -- Box ESP
                     esp.Box.Size = Vector2.new(width, height)
                     esp.Box.Position = boxPos
+                    esp.Box.Color = config.ESP.BoxESP.Color
+                    esp.Box.Thickness = config.ESP.BoxESP.Thickness
+                    esp.Box.Filled = config.ESP.BoxESP.Filled
+                    esp.Box.Transparency = 1 - config.ESP.BoxESP.Transparency
                     esp.Box.Visible = config.ESP.BoxESP.Enabled
 
                     -- Health Bar
@@ -294,18 +305,18 @@ if config.ESP and config.ESP.Enabled then
 
                     -- Tracers
                     esp.Tracer.From = origin
-                    esp.Tracer.To = Vector2.new(pos.X, pos.Y + height / 2)
+                    esp.Tracer.To = Vector2.new(tl.X + width / 2, br.Y)
                     esp.Tracer.Visible = config.ESP.Tracers.Enabled
 
                     -- Name
                     esp.Name.Text = player.Name
-                    esp.Name.Position = Vector2.new(pos.X, boxPos.Y - 16)
+                    esp.Name.Position = Vector2.new(tl.X + width / 2, boxPos.Y - 16)
                     esp.Name.Visible = config.ESP.NameESP.Enabled
 
                     -- Distance
                     local dist = (Camera.CFrame.Position - hrp.Position).Magnitude
                     esp.Distance.Text = tostring(math.floor(dist))
-                    esp.Distance.Position = Vector2.new(pos.X, boxPos.Y + height + 2)
+                    esp.Distance.Position = Vector2.new(tl.X + width / 2, boxPos.Y + height + 2)
                     esp.Distance.Visible = config.ESP.DistanceESP.Enabled
                 else
                     for _, obj in pairs(esp) do
