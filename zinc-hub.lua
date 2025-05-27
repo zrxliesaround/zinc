@@ -5,7 +5,7 @@ local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- Utility to get closest player within range for Silent Aim or Camlock
+-- Helper: get closest player in range for Silent Aim or Camlock
 local function getClosestPlayer(range)
     local closest, dist = nil, range or math.huge
     if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
@@ -24,8 +24,9 @@ local function getClosestPlayer(range)
     return closest
 end
 
--- Silent Aim (basic example)
+-- Silent Aim Hook
 if config['Silent Aim'] and config['Silent Aim'].Enabled then
+    print("[Zinc] Silent Aim enabled")
     local mt = getrawmetatable(game)
     local oldNamecall = mt.__namecall
     setreadonly(mt, false)
@@ -36,12 +37,28 @@ if config['Silent Aim'] and config['Silent Aim'].Enabled then
         if method == "FireServer" and tostring(self):lower():find("shoot") then
             local target = getClosestPlayer(config.Range['Silent Aim'])
             if target and target.Character then
-                local parts = config['Silent Aim']['Hit Location'].Parts
-                local partName = parts[1] or "Head"
-                local part = target.Character:FindFirstChild(partName)
-                if part then
-                    local pred = config['Silent Aim'].Prediction.Sets.X or 0
-                    args[2] = part.Position + part.Velocity * pred
+                -- Find closest hit part defined in config to target's character
+                local partsList = config['Silent Aim']['Hit Location'].Parts
+                local closestPart, closestDist = nil, math.huge
+                local hrp = target.Character:FindFirstChild("HumanoidRootPart")
+                for _, partName in ipairs(partsList) do
+                    local part = target.Character:FindFirstChild(partName)
+                    if part then
+                        local distToHRP = (part.Position - hrp.Position).Magnitude
+                        if distToHRP < closestDist then
+                            closestPart = part
+                            closestDist = distToHRP
+                        end
+                    end
+                end
+                if closestPart then
+                    local pred = config['Silent Aim'].Prediction.Sets
+                    pred = pred or {X=0, Y=0, Z=0}
+                    -- Apply prediction vector to position
+                    local predictedPos = closestPart.Position + closestPart.Velocity * Vector3.new(pred.X, pred.Y, pred.Z)
+                    args[2] = predictedPos
+                    -- Debug print to confirm
+                    -- print("[Zinc] Silent Aim adjusted shot to", predictedPos)
                     return oldNamecall(self, unpack(args))
                 end
             end
@@ -52,34 +69,35 @@ if config['Silent Aim'] and config['Silent Aim'].Enabled then
     setreadonly(mt, true)
 end
 
--- Camlock example toggle
-if config['Camlock'] and config['Camlock'].Enabled then
-    local camlockActive = false
-    local camlockTarget = nil
-    local camlockKey = config['Camlock'].Keybind or 'q'
-    UserInputService.InputBegan:Connect(function(input, gp)
-        if gp then return end
-        if input.KeyCode.Name:lower() == camlockKey:lower() then
-            camlockActive = not camlockActive
-            if camlockActive then
-                camlockTarget = getClosestPlayer(config.Range['Camlock'])
-            else
-                camlockTarget = nil
-            end
-        end
-    end)
+-- Camlock (toggle with keybind even if Disabled initially)
+local camlockActive = false
+local camlockTarget = nil
+local camlockKey = config['Camlock'] and config['Camlock'].Keybind or 'q'
 
-    RunService.RenderStepped:Connect(function()
-        if camlockActive and camlockTarget and camlockTarget.Character then
-            local hrp = camlockTarget.Character:FindFirstChild("HumanoidRootPart")
-            if hrp then
-                Camera.CFrame = CFrame.new(Camera.CFrame.Position, hrp.Position)
-            end
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.UserInputType == Enum.UserInputType.Keyboard and input.KeyCode.Name:lower() == camlockKey:lower() then
+        camlockActive = not camlockActive
+        if camlockActive then
+            camlockTarget = getClosestPlayer(config.Range and config.Range['Camlock'] or 250)
+            print("[Zinc] Camlock activated on", camlockTarget and camlockTarget.Name or "none")
+        else
+            camlockTarget = nil
+            print("[Zinc] Camlock deactivated")
         end
-    end)
-end
+    end
+end)
 
--- Speedwalk
+RunService.RenderStepped:Connect(function()
+    if camlockActive and camlockTarget and camlockTarget.Character then
+        local hrp = camlockTarget.Character:FindFirstChild("HumanoidRootPart")
+        if hrp then
+            Camera.CFrame = CFrame.new(Camera.CFrame.Position, hrp.Position)
+        end
+    end
+end)
+
+-- Speed Modifications
 local speedConfig = config['Speed Modifications'] and config['Speed Modifications'].Options
 if speedConfig and speedConfig.Enabled then
     local toggled = false
@@ -90,15 +108,18 @@ if speedConfig and speedConfig.Enabled then
 
     UserInputService.InputBegan:Connect(function(input, gp)
         if gp then return end
-        if input.KeyCode.Name:lower() == toggleKey then
-            toggled = not toggled
-            print("[Zinc] Speedwalk toggled:", toggled)
-        elseif input.KeyCode.Name:lower() == speedUpKey then
-            speed += 15
-            print("[Zinc] Speed increased to:", speed)
-        elseif input.KeyCode.Name:lower() == speedDownKey then
-            speed = math.max(0, speed - 15)
-            print("[Zinc] Speed decreased to:", speed)
+        if input.UserInputType == Enum.UserInputType.Keyboard then
+            local key = input.KeyCode.Name:lower()
+            if key == toggleKey then
+                toggled = not toggled
+                print("[Zinc] Speedwalk toggled:", toggled)
+            elseif key == speedUpKey then
+                speed = speed + 5
+                print("[Zinc] Speed increased to:", speed)
+            elseif key == speedDownKey then
+                speed = math.max(0, speed - 5)
+                print("[Zinc] Speed decreased to:", speed)
+            end
         end
     end)
 
@@ -113,7 +134,7 @@ if speedConfig and speedConfig.Enabled then
     end)
 end
 
--- Trigger Bot (basic)
+-- Trigger Bot
 if config['Trigger bot'] and config['Trigger bot'].Enabled then
     local mouseDown = false
 
@@ -123,6 +144,7 @@ if config['Trigger bot'] and config['Trigger bot'].Enabled then
             mouseDown = true
         end
     end)
+
     UserInputService.InputEnded:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 then
             mouseDown = false
@@ -133,7 +155,7 @@ if config['Trigger bot'] and config['Trigger bot'].Enabled then
         if not mouseDown then return end
 
         local rayOrigin = Camera.CFrame.Position
-        local rayDir = Camera.CFrame.LookVector * config.Range['Trigger bot']
+        local rayDir = Camera.CFrame.LookVector * (config.Range and config.Range['Trigger bot'] or 250)
 
         local raycastParams = RaycastParams.new()
         raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
@@ -143,15 +165,22 @@ if config['Trigger bot'] and config['Trigger bot'].Enabled then
         if result and result.Instance and result.Instance.Parent then
             local humanoid = result.Instance.Parent:FindFirstChildOfClass("Humanoid")
             if humanoid and humanoid.Health > 0 then
-                mouse1click()
+                -- Try to fire mouse click event (replace if your exploit supports better way)
+                pcall(function()
+                    mouse1click()
+                end)
             end
         end
     end)
 end
 
--- ESP (simplified)
+-- ESP (simple)
 if config.ESP and config.ESP.Enabled then
-    local Drawing = Drawing -- assuming drawing lib available (you may need a drawing library like Orion or something)
+    local Drawing = Drawing -- check if Drawing API is available
+    if not Drawing then
+        warn("[Zinc] Drawing library not found. ESP will not work.")
+        return
+    end
 
     local espObjects = {}
 
@@ -163,14 +192,10 @@ if config.ESP and config.ESP.Enabled then
         box.Thickness = config.ESP.BoxESP.Thickness or 1
         box.Filled = config.ESP.BoxESP.Filled or false
         box.Transparency = config.ESP.BoxESP.Transparency or 0.5
-
         espObjects[player] = box
     end
 
-    Players.PlayerAdded:Connect(function(plr)
-        createESP(plr)
-    end)
-
+    Players.PlayerAdded:Connect(createESP)
     for _, plr in pairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer then
             createESP(plr)
@@ -185,14 +210,16 @@ if config.ESP and config.ESP.Enabled then
             return
         end
 
-        local camera = workspace.CurrentCamera
+        local cam = workspace.CurrentCamera
         for player, box in pairs(espObjects) do
             local char = player.Character
             if char and char:FindFirstChild("HumanoidRootPart") then
-                local pos, onScreen = camera:WorldToViewportPoint(char.HumanoidRootPart.Position)
+                local pos, onScreen = cam:WorldToViewportPoint(char.HumanoidRootPart.Position)
                 if onScreen then
                     box.Visible = true
-                    box.Size = Vector2.new(50, 50) -- example size, you can calculate based on distance
+                    local dist = (Camera.CFrame.Position - char.HumanoidRootPart.Position).Magnitude
+                    local size = math.clamp(3000 / dist, 20, 60)
+                    box.Size = Vector2.new(size, size)
                     box.Position = Vector2.new(pos.X - box.Size.X / 2, pos.Y - box.Size.Y / 2)
                 else
                     box.Visible = false
