@@ -292,55 +292,82 @@ if config['Camlock'].Enabled then
 end
 
 -- Trigger Bot
-if config['Trigger bot'].Enabled then
-    RunService.RenderStepped:Connect(function()
-        local target = getClosestPlayer(config.Range['Trigger bot'])
-        if target and target.Character then
-            local part = target.Character[config['Trigger bot'].HitParts.Parts[1]]
-            if part then
-                local screenPos, onScreen = workspace.CurrentCamera:WorldToViewportPoint(part.Position)
-                if onScreen then
-                    mouse1press()
-                    wait(config['Trigger bot'].Delay.Value)
-                    mouse1release()
-                end
-            end
+-- LocalScript (StarterPlayerScripts)
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+
+-- Settings
+local ClickCooldown = 0.2 -- seconds between clicks
+local AutoClickEnabled = false
+local ToggleKey = Enum.KeyCode.Q
+
+-- List of tool names to exclude from auto-clicking
+local ExcludedToolNames = {
+    "Knife",
+}
+
+local lastClickTime = 0
+
+-- Check if tool name is in exclusion list
+local function isExcludedTool(tool)
+    if not tool then return false end
+    for _, name in ipairs(ExcludedToolNames) do
+        if tool.Name == name then
+            return true
         end
-    end)
+    end
+    return false
 end
 
--- Speed Modifications
-if config['Speed Modifications'].Options.Enabled then
-    local speedEnabled = true
-    local speed = config['Speed Modifications'].Options.DefaultSpeed
-    local toggleKey = config['Speed Modifications'].Options.Keybinds.ToggleMovement:lower()
-    local speedUpKey = config['Speed Modifications'].Options.Keybinds['Speed +5']:lower()
-    local speedDownKey = config['Speed Modifications'].Options.Keybinds['Speed -5']:lower()
+-- Function to check if cursor is on another player
+local function isCursorOnPlayer()
+    local target = Mouse.Target
+    if not target then return false end
 
-    RunService.RenderStepped:Connect(function()
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
-            if speedEnabled then
-                LocalPlayer.Character.Humanoid.WalkSpeed = speed
-            else
-                LocalPlayer.Character.Humanoid.WalkSpeed = 16
-            end
-        end
-    end)
+    local character = target:FindFirstAncestorOfClass("Model")
+    local player = Players:GetPlayerFromCharacter(character)
 
-    Mouse.KeyDown:Connect(function(key)
-        key = key:lower()
-        if key == toggleKey then
-            speedEnabled = not speedEnabled
-        end
-        if speedEnabled then
-            if key == speedUpKey then
-                speed = speed + 15
-            elseif key == speedDownKey then
-                speed = math.max(0, speed - 15)
-            end
-        end
-    end)
+    return player and player ~= LocalPlayer
 end
+
+-- Function to simulate a click
+local function simulateClick()
+    local tool = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+    if isExcludedTool(tool) then return end
+
+    if tool and tool:FindFirstChild("Activate") then
+        tool:Activate()
+    elseif tool then
+        tool:Activate()
+    else
+        print("Click!")
+    end
+end
+
+-- Toggle auto-clicking on/off with key
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+
+    if input.KeyCode == ToggleKey then
+        AutoClickEnabled = not AutoClickEnabled
+        print("Auto Click: " .. (AutoClickEnabled and "Enabled" or "Disabled"))
+    end
+end)
+
+-- Main loop: auto-click when cursor is on player and tool is allowed
+RunService.RenderStepped:Connect(function()
+    if AutoClickEnabled and isCursorOnPlayer() then
+        local now = tick()
+        if now - lastClickTime >= ClickCooldown then
+            simulateClick()
+            lastClickTime = now
+        end
+    end
+end)
 
 -- Spread Modifications
 if config['Spread modifications'].Options.Enabled then
