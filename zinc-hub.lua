@@ -373,6 +373,48 @@ end)
 if config['Spread modifications'].Options.Enabled then
     local spread = config['Spread modifications'].Options.Multiplier
     -- Hook function here as needed depending on the game
-end
+end 
+-- NoClip
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local noclipEnabled = false
+local noclipKey = config.NoClipFly and config.NoClipFly.NoClip.Keybind:lower() or 'n'
+
+-- Toggle NoClip on key press
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode[noclipKey:upper()] then
+        noclipEnabled = not noclipEnabled
+        print("[Zinc] NoClip " .. (noclipEnabled and "Enabled" or "Disabled"))
+    end
+end)
+
+-- RunService loop to disable collisions on HumanoidRootPart
+RunService.Stepped:Connect(function()
+    if noclipEnabled then
+        local character = LocalPlayer.Character
+        if character then
+            local hrp = character:FindFirstChild("HumanoidRootPart")
+            if hrp then
+                for _, part in pairs(character:GetChildren()) do
+                    if part:IsA("BasePart") then
+                        part.CanCollide = false
+                    end
+                end
+            end
+        end
+    else
+        -- Optionally, reset CanCollide when disabled (safe approach)
+        local character = LocalPlayer.Character
+        if character then
+            for _, part in pairs(character:GetChildren()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+        end
+    end
+end)
+
 
 print("[Zinc] Script Loaded Successfully.")
