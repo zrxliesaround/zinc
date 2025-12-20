@@ -20,7 +20,7 @@ return {
         }
     },
 
-    [109253147673589] = {
+    [134282648090419] = {
         name = "Deehood",
         safe = true,
         hasAntiCheat = false,
