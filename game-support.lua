@@ -71,7 +71,7 @@ return {
         }
     },
 
-    [131984654356230] = {
+    [96725866057460] = {
         name = "das hood",
         safe = true,
         hasAntiCheat = false,
