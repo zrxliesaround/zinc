@@ -289,7 +289,7 @@ end)
 
 
 --// =========================
---// ESP – TABLE DRIVEN (BOTTOM OF CHARACTER)
+--// ESP – CLEAN, SHARP, BOTTOM (TABLE DRIVEN)
 --// =========================
 if cfg.ESP and cfg.ESP.Enabled then
     local ESPcfg = cfg.ESP
@@ -300,14 +300,14 @@ if cfg.ESP and cfg.ESP.Enabled then
     local distanceCache = {}
 
     local SMOOTHNESS = 0.35
-    local FOOT_OFFSET = Vector3.new(0, -3.2, 0) -- BELOW character (feet)
+    local FOOT_OFFSET = Vector3.new(0, -3.1, 0)
 
     local function createESP(plr)
         if plr == LocalPlayer or esp[plr] then return end
 
         local text = Drawing.new("Text")
         text.Center = true
-        text.Font = 0
+        text.Font = 2 -- SHARPEST
         text.Size = NameCfg.TextSize
         text.Color = NameCfg.Color
         text.Transparency = 1
@@ -317,7 +317,7 @@ if cfg.ESP and cfg.ESP.Enabled then
         if NameCfg.Outline then
             outline = Drawing.new("Text")
             outline.Center = true
-            outline.Font = 0
+            outline.Font = 2
             outline.Size = NameCfg.TextSize
             outline.Color = Color3.new(0, 0, 0)
             outline.Transparency = 0.7
@@ -341,21 +341,19 @@ if cfg.ESP and cfg.ESP.Enabled then
         end
     end
 
-    for _, p in ipairs(Players:GetPlayers()) do
-        createESP(p)
-    end
+    for _, p in ipairs(Players:GetPlayers()) do createESP(p) end
     Players.PlayerAdded:Connect(createESP)
     Players.PlayerRemoving:Connect(removeESP)
 
     -- Distance updater (low frequency)
     task.spawn(function()
-        while task.wait(0.3) do
+        while task.wait(0.25) do
             for plr in pairs(esp) do
                 local char = plr.Character
                 local hrp = char and char:FindFirstChild("HumanoidRootPart")
                 if hrp then
                     distanceCache[plr] =
-                        math.floor((Camera.CFrame.Position - hrp.Position).Magnitude)
+                        (Camera.CFrame.Position - hrp.Position).Magnitude
                 end
             end
         end
@@ -376,6 +374,17 @@ if cfg.ESP and cfg.ESP.Enabled then
                     local target = Vector2.new(pos.X, pos.Y)
                     data.Pos = data.Pos:Lerp(target, SMOOTHNESS)
 
+                    local dist = distanceCache[plr] or 0
+
+                    -- Distance-based size scaling (NO PIXELS)
+                    local baseSize = NameCfg.TextSize
+                    local scaledSize = math.clamp(
+                        baseSize * (1 - (dist / 600)),
+                        baseSize * 0.7,
+                        baseSize
+                    )
+                    scaledSize = math.floor(scaledSize)
+
                     local label = ""
 
                     if NameCfg.Enabled then
@@ -383,21 +392,20 @@ if cfg.ESP and cfg.ESP.Enabled then
                     end
 
                     if DistCfg.Enabled then
-                        local dist = distanceCache[plr] or 0
                         label = label ~= "" and
-                            (label .. " [" .. dist .. "]") or
-                            ("[" .. dist .. "]")
+                            (label .. " [" .. math.floor(dist) .. "]") or
+                            ("[" .. math.floor(dist) .. "]")
                     end
 
                     data.Text.Text = label
-                    data.Text.Size = NameCfg.TextSize
+                    data.Text.Size = scaledSize
                     data.Text.Color = NameCfg.Color
                     data.Text.Position = data.Pos
                     data.Text.Visible = true
 
                     if data.Outline then
                         data.Outline.Text = label
-                        data.Outline.Size = NameCfg.TextSize
+                        data.Outline.Size = scaledSize
                         data.Outline.Position = data.Pos + Vector2.new(1, 1)
                         data.Outline.Visible = true
                     end
@@ -412,5 +420,4 @@ if cfg.ESP and cfg.ESP.Enabled then
         end
     end)
 end
-
 
