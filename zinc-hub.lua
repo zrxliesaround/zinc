@@ -225,63 +225,68 @@ if spdCfg.Enabled then
 end
 
 --// =========================
---// TRIGGER BOT (NO PREDICTION)
+--// TRIGGER BOT (ZINC – NO PREDICTION)
 --// =========================
-if cfg["Trigger bot"] and cfg["Trigger bot"].Enabled then
-    local TB = cfg["Trigger bot"]
-    local mouseDown = false
+local TriggerBot = cfg["Trigger bot"]
+local mouseHeld = false
 
-    -- Track M1 input (hold mode)
-    UserInputService.InputBegan:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 and TB.Keybind.Bind:lower() == "m1" then
-            if TB.Keybind["Keybind Mode"]:lower() == "hold" then
-                mouseDown = true
-            else
-                mouseDown = not mouseDown
+-- Input tracking (M1 hold)
+UserInputService.InputBegan:Connect(function(input, gpe)
+    if gpe then return end
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        if TriggerBot.Keybind.Bind:lower() == "m1" then
+            mouseHeld = true
+        end
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 then
+        mouseHeld = false
+    end
+end)
+
+-- Raycast params
+local rayParams = RaycastParams.new()
+rayParams.FilterType = Enum.RaycastFilterType.Blacklist
+
+-- Trigger Bot loop
+task.spawn(function()
+    while task.wait(TriggerBot.Delay.Value) do
+        if not TriggerBot.Enabled then continue end
+        if not mouseHeld then continue end
+        if not Character then continue end
+
+        -- Weapon check
+        local tool = Character:FindFirstChildOfClass("Tool")
+        if not tool or not table.find(TriggerBot.Weapons, tool.Name) then
+            continue
+        end
+
+        rayParams.FilterDescendantsInstances = {Character}
+
+        -- Raycast from camera
+        local result = workspace:Raycast(
+            Camera.CFrame.Position,
+            Camera.CFrame.LookVector * cfg.Range["Trigger bot"],
+            rayParams
+        )
+
+        if result and result.Instance then
+            local hitModel = result.Instance:FindFirstAncestorOfClass("Model")
+            local hum = hitModel and hitModel:FindFirstChildOfClass("Humanoid")
+
+            if hum and hum.Health > 0 then
+                -- THIS is the important part:
+                -- Trigger the SAME shot Silent Aim already modifies
+                mouse1press()
+                task.wait()
+                mouse1release()
             end
         end
-    end)
+    end
+end)
 
-    UserInputService.InputEnded:Connect(function(input)
-        if input.UserInputType == Enum.UserInputType.MouseButton1 and TB.Keybind.Bind:lower() == "m1" then
-            if TB.Keybind["Keybind Mode"]:lower() == "hold" then
-                mouseDown = false
-            end
-        end
-    end)
-
-    task.spawn(function()
-        while task.wait(TB.Delay.Value) do
-            if not mouseDown or not Character then continue end
-
-            -- Make sure player has a valid weapon
-            local weapon = Character:FindFirstChildOfClass("Tool")
-            if not weapon or not table.find(TB.Weapons, weapon.Name) then continue end
-
-            -- Raycast directly from camera
-            local rayParams = RaycastParams.new()
-            rayParams.FilterDescendantsInstances = {Character}
-            rayParams.FilterType = Enum.RaycastFilterType.Blacklist
-
-            local res = workspace:Raycast(
-                Camera.CFrame.Position,
-                Camera.CFrame.LookVector * cfg.Range["Trigger bot"],
-                rayParams
-            )
-
-            if res and res.Instance then
-                local hum = res.Instance.Parent:FindFirstChildOfClass("Humanoid")
-                if hum and hum.Health > 0 then
-                    -- FireServer using same method as Silent Aim (no prediction)
-                    local args = {res.Position} -- just hit the part directly
-                    -- Trigger the RemoteEvent or function that Silent Aim uses
-                    -- This line may need your existing hub's hook, e.g.:
-                    -- oldNamecall(self, unpack(args))
-                end
-            end
-        end
-    end)
-end
 
 
 --// =========================
