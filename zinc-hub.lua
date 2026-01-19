@@ -225,54 +225,60 @@ if spdCfg.Enabled then
 end
 
 --// =========================
---// TRIGGER BOT (ZINC v1)
+--// TRIGGER BOT (ZINC v1 FIXED)
 --// =========================
 if cfg["Trigger bot"] and cfg["Trigger bot"].Enabled then
     local TB = cfg["Trigger bot"]
     local mouseDown = false
 
     -- Track mouse input
-    UserInputService.InputBegan:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 and TB.Keybind.Bind:lower() == "m1" then
-            mouseDown = true
+    UserInputService.InputBegan:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 and TB.Keybind.Bind:lower() == "m1" then
+            if TB.Keybind["Keybind Mode"]:lower() == "hold" then
+                mouseDown = true
+            else
+                mouseDown = not mouseDown -- toggle mode
+            end
         end
     end)
 
-    UserInputService.InputEnded:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 and TB.Keybind.Bind:lower() == "m1" then
-            mouseDown = false
+    UserInputService.InputEnded:Connect(function(input)
+        if input.UserInputType == Enum.UserInputType.MouseButton1 and TB.Keybind.Bind:lower() == "m1" then
+            if TB.Keybind["Keybind Mode"]:lower() == "hold" then
+                mouseDown = false
+            end
         end
     end)
 
+    -- Trigger Bot loop
     task.spawn(function()
         while task.wait(TB.Delay.Value) do
             if not mouseDown or not Character then continue end
 
+            -- Make sure player has the correct weapon
+            local weapon = Character:FindFirstChildOfClass("Tool")
+            if not weapon or not table.find(TB.Weapons, weapon.Name) then continue end
+
+            -- Raycast in front of camera
             local rayParams = RaycastParams.new()
             rayParams.FilterDescendantsInstances = {Character}
             rayParams.FilterType = Enum.RaycastFilterType.Blacklist
 
-            local rayDir = Camera.CFrame.LookVector * cfg.Range["Trigger bot"]
-            local res = workspace:Raycast(Camera.CFrame.Position, rayDir, rayParams)
+            local res = workspace:Raycast(
+                Camera.CFrame.Position,
+                Camera.CFrame.LookVector * cfg.Range["Trigger bot"],
+                rayParams
+            )
 
             if res and res.Instance then
                 local hum = res.Instance.Parent:FindFirstChildOfClass("Humanoid")
                 if hum and hum.Health > 0 then
-                    local weapon = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
-                    if weapon and table.find(TB.Weapons, weapon.Name) then
-                        -- Apply prediction (if any)
-                        local pred = TB.Prediction or 0
-                        local targetPos = res.Position + res.Instance.Velocity * pred
-
-                        -- Fire
-                        pcall(mouse1click)  -- left click
-                    end
+                    pcall(mouse1click) -- Fire left click
                 end
             end
         end
     end)
 end
-
 
 --// =========================
 --// ESP – CLEAN NAME + DISTANCE (ABOVE HEAD)
