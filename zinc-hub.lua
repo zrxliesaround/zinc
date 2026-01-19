@@ -160,80 +160,123 @@ end
 
 
 --// =========================
---// CAMLOCK (STABLE / CURSOR-BASED)
+--// AIM ASSIST (FULL TABLE-DRIVEN)
 --// =========================
 
-local camCfg = cfg.Camlock
-local camActive = false
-local camTarget = nil
-
-local camKey = camCfg.Keybind:lower()
-local smooth = math.clamp(camCfg.Value.Snappiness * 0.15, 0.05, 0.25)
+local aimCfg = getgenv().zinc['Aim Assist']
+local aimActive = false
+local aimTarget = nil
 
 local Mouse = LocalPlayer:GetMouse()
+local Camera = workspace.CurrentCamera
 
--- Get player under mouse (ONE TIME)
-local function getPlayerUnderMouse()
-    local target = Mouse.Target
-    if not target then return nil end
+-- Helper: check if target passes table checks
+local function passesChecks(target)
+    local char = target.Character
+    if not char then return false end
 
-    local model = target:FindFirstAncestorOfClass("Model")
-    if not model then return nil end
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then return false end
 
-    local plr = Players:GetPlayerFromCharacter(model)
-    if plr and plr ~= LocalPlayer then
-        return plr
+    for _, check in ipairs(aimCfg.Checks) do
+        if check == 'Knocked' and hum:FindFirstChild('Knocked') then
+            return false
+        elseif check == 'Grabbed' and hum:FindFirstChild('Grabbed') then
+            return false
+        elseif check == 'Vehicle' and char:FindFirstChildOfClass('VehicleSeat') then
+            return false
+        elseif check == 'Wall' then
+            -- optional wall check
+            local root = char:FindFirstChild('HumanoidRootPart')
+            if root then
+                local ray = Ray.new(Camera.CFrame.Position, (root.Position - Camera.CFrame.Position).Unit * 500)
+                local hit = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character})
+                if hit and not hit:IsDescendantOf(char) then
+                    return false
+                end
+            end
+        end
     end
-    return nil
+
+    return true
 end
 
--- Toggle camlock
+-- Get closest target in FOV
+local function getClosestTarget()
+    local closest, dist = nil, aimCfg.Fov.Enabled and aimCfg.Fov.Value or math.huge
+    for _, plr in ipairs(game:GetService("Players"):GetPlayers()) do
+        if plr ~= LocalPlayer and passesChecks(plr) then
+            local char = plr.Character
+            if char then
+                local part = getClosestPart(char, aimCfg['Hit Location'].Parts)
+                if part then
+                    local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
+                    if onScreen then
+                        local mousePos = Vector2.new(Mouse.X, Mouse.Y)
+                        local delta = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                        if delta < dist then
+                            dist = delta
+                            closest = plr
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return closest
+end
+
+-- Toggle aim assist
 UserInputService.InputBegan:Connect(function(i, gp)
     if gp or i.UserInputType ~= Enum.UserInputType.Keyboard then return end
-    if i.KeyCode.Name:lower() ~= camKey then return end
+    if i.KeyCode.Name:lower() ~= aimCfg.Keybind:lower() then return end
+    if not aimCfg.Enabled then return end
 
-    camActive = not camActive
-
-    if camActive then
-        camTarget = getPlayerUnderMouse()
-        if not camTarget then
-            camActive = false
-        end
+    aimActive = not aimActive
+    if aimActive then
+        aimTarget = getClosestTarget()
+        if not aimTarget then aimActive = false end
     else
-        camTarget = nil
+        aimTarget = nil
     end
 end)
 
 -- Render loop
 RunService.RenderStepped:Connect(function()
-    if not camActive or not camTarget then return end
+    if not aimActive or not aimTarget then return end
 
-    local char = camTarget.Character
+    local char = aimTarget.Character
     if not char then
-        camActive = false
-        camTarget = nil
+        aimActive = false
+        aimTarget = nil
         return
     end
 
-    local hum = char:FindFirstChildOfClass("Humanoid")
-    if not hum or hum.Health <= 0 then
-        camActive = false
-        camTarget = nil
-        return
-    end
-
-    local part = getClosestPart(char, camCfg["Hit Location"].Parts)
+    local part = getClosestPart(char, aimCfg['Hit Location'].Parts)
     if not part then return end
 
     -- Prediction
-    local pred = camCfg.Prediction
-    local predictedPos = part.Position +
-        (part.Velocity * Vector3.new(pred.X, pred.Y, pred.Z))
+    local pred = aimCfg.Prediction
+    local predictedPos = part.Position + (part.Velocity * Vector3.new(pred.X, pred.Y, pred.Z))
 
+    -- Check camera mode
+    local camType = workspace.CurrentCamera.CameraType
+    if (camType == Enum.CameraType.Custom and not aimCfg.Value.ThirdPerson) or
+       (camType == Enum.CameraType.Attach and not aimCfg.Value.FirstPerson) then
+        return
+    end
+
+    -- Smooth aim
+    local smooth = math.clamp(aimCfg.Value.Smoothness, 0.01, 1)
     Camera.CFrame = Camera.CFrame:Lerp(
         CFrame.new(Camera.CFrame.Position, predictedPos),
         smooth
     )
+
+    -- Optional: draw FOV
+    if aimCfg.ShowFov then
+        -- You can implement Drawing library code here
+    end
 end)
 
 
