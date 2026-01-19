@@ -202,48 +202,105 @@ if cfg["Trigger bot"] and cfg["Trigger bot"].Enabled then
 end
 
 --// =========================
---// ESP – NAME + DISTANCE ONLY
+--// ESP – CLEAN NAME + DISTANCE (SMOOTH)
 --// =========================
 if cfg.ESP and cfg.ESP.Enabled then
     local esp = {}
+    local distanceCache = {}
 
-    local function add(plr)
+    local SMOOTHNESS = 0.25 -- lower = snappier, higher = smoother
+
+    local function createESP(plr)
         if plr == LocalPlayer or esp[plr] then return end
-        local name = Drawing.new("Text")
-        name.Center = true
-        name.Outline = cfg.ESP.NameESP.Outline
-        name.Size = cfg.ESP.NameESP.TextSize
-        name.Color = cfg.ESP.NameESP.Color
-        esp[plr] = name
+
+        -- Shadow (for clean text)
+        local shadow = Drawing.new("Text")
+        shadow.Center = true
+        shadow.Outline = false
+        shadow.Font = 2
+        shadow.Size = cfg.ESP.NameESP.TextSize
+        shadow.Color = Color3.new(0, 0, 0)
+        shadow.Transparency = 0.6
+        shadow.Visible = false
+
+        -- Main text
+        local text = Drawing.new("Text")
+        text.Center = true
+        text.Outline = false
+        text.Font = 2
+        text.Size = cfg.ESP.NameESP.TextSize
+        text.Color = cfg.ESP.NameESP.Color
+        text.Visible = false
+
+        esp[plr] = {
+            Text = text,
+            Shadow = shadow,
+            ScreenPos = Vector2.zero
+        }
     end
 
-    for _, p in ipairs(Players:GetPlayers()) do add(p) end
-    Players.PlayerAdded:Connect(add)
-    Players.PlayerRemoving:Connect(function(p)
-        if esp[p] then esp[p]:Remove() esp[p] = nil end
-    end)
+    local function removeESP(plr)
+        if esp[plr] then
+            esp[plr].Text:Remove()
+            esp[plr].Shadow:Remove()
+            esp[plr] = nil
+            distanceCache[plr] = nil
+        end
+    end
 
+    for _, p in ipairs(Players:GetPlayers()) do
+        createESP(p)
+    end
+
+    Players.PlayerAdded:Connect(createESP)
+    Players.PlayerRemoving:Connect(removeESP)
+
+    -- Update distance (THROTTLED)
     task.spawn(function()
-        while task.wait(0.1) do
-            for plr, text in pairs(esp) do
+        while task.wait(0.25) do
+            for plr in pairs(esp) do
                 local char = plr.Character
                 local hrp = char and char:FindFirstChild("HumanoidRootPart")
-                local hum = char and char:FindFirstChildOfClass("Humanoid")
-                if hrp and hum and hum.Health > 0 then
-                    local pos, on = Camera:WorldToViewportPoint(hrp.Position)
-                    if on then
-                        local dist = math.floor(
-                            (Camera.CFrame.Position - hrp.Position).Magnitude
-                        )
-                        text.Text = plr.Name .. " [" .. dist .. "]"
-                        text.Position = Vector2.new(pos.X, pos.Y)
-                        text.Visible = true
-                    else
-                        text.Visible = false
-                    end
-                else
-                    text.Visible = false
+                if hrp then
+                    distanceCache[plr] =
+                        math.floor((Camera.CFrame.Position - hrp.Position).Magnitude)
                 end
+            end
+        end
+    end)
+
+    -- Smooth position update (EVERY FRAME)
+    RunService.RenderStepped:Connect(function()
+        for plr, data in pairs(esp) do
+            local char = plr.Character
+            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local hum = char and char:FindFirstChildOfClass("Humanoid")
+
+            if hrp and hum and hum.Health > 0 then
+                local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+
+                if onScreen then
+                    local targetPos = Vector2.new(pos.X, pos.Y)
+                    data.ScreenPos = data.ScreenPos:Lerp(targetPos, SMOOTHNESS)
+
+                    local dist = distanceCache[plr] or 0
+                    local label = plr.Name .. " [" .. dist .. "]"
+
+                    data.Text.Text = label
+                    data.Shadow.Text = label
+
+                    data.Text.Position = data.ScreenPos
+                    data.Shadow.Position = data.ScreenPos + Vector2.new(1, 1)
+
+                    data.Text.Visible = true
+                    data.Shadow.Visible = true
+                else
+                    data.Text.Visible = false
+                    data.Shadow.Visible = false
+                end
+            else
+                data.Text.Visible = false
+                data.Shadow.Visible = false
             end
         end
     end)
