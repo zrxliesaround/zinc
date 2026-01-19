@@ -169,6 +169,11 @@ local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
+-- Wait for character to load
+while not LocalPlayer.Character do
+    LocalPlayer.CharacterAdded:Wait()
+end
+
 local aimCfg = getgenv().zinc['Aim Assist']
 local aimActive = false
 local aimTarget = nil
@@ -188,19 +193,18 @@ end
 local function passesChecks(target)
     local char = target.Character
     if not char then return false end
-
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hum or hum.Health <= 0 then return false end
 
     for _, check in ipairs(aimCfg.Checks) do
-        if check == 'Knocked' and hum:FindFirstChild('Knocked') then
+        if check == "Knocked" and hum:FindFirstChild("Knocked") then
             return false
-        elseif check == 'Grabbed' and hum:FindFirstChild('Grabbed') then
+        elseif check == "Grabbed" and hum:FindFirstChild("Grabbed") then
             return false
-        elseif check == 'Vehicle' and char:FindFirstChildOfClass('VehicleSeat') then
+        elseif check == "Vehicle" and char:FindFirstChildOfClass("VehicleSeat") then
             return false
-        elseif check == 'Wall' then
-            local root = char:FindFirstChild('HumanoidRootPart')
+        elseif check == "Wall" then
+            local root = char:FindFirstChild("HumanoidRootPart")
             if root then
                 local ray = Ray.new(Camera.CFrame.Position, (root.Position - Camera.CFrame.Position).Unit * 500)
                 local hit = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character})
@@ -210,7 +214,6 @@ local function passesChecks(target)
             end
         end
     end
-
     return true
 end
 
@@ -221,12 +224,11 @@ local function getClosestTarget()
         if plr ~= LocalPlayer and passesChecks(plr) then
             local char = plr.Character
             if char then
-                local part = getClosestPart(char, aimCfg['Hit Location'].Parts)
+                local part = getClosestPart(char, aimCfg["Hit Location"].Parts)
                 if part then
                     local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
                     if onScreen then
-                        local mousePos = Vector2.new(Mouse.X, Mouse.Y)
-                        local delta = (Vector2.new(screenPos.X, screenPos.Y) - mousePos).Magnitude
+                        local delta = (Vector2.new(screenPos.X, screenPos.Y) - Vector2.new(Mouse.X, Mouse.Y)).Magnitude
                         if delta < dist then
                             dist = delta
                             closest = plr
@@ -240,33 +242,27 @@ local function getClosestTarget()
 end
 
 -- Toggle Aim Assist
-UserInputService.InputBegan:Connect(function(i, gp)
-    if gp or i.UserInputType ~= Enum.UserInputType.Keyboard then return end
+UserInputService.InputBegan:Connect(function(input, gp)
+    if gp then return end
     if not aimCfg.Enabled then return end
-    if i.KeyCode.Name:lower() == aimCfg.Keybind:lower() then
+    if input.KeyCode.Name:lower() == aimCfg.Keybind:lower() then
         aimActive = not aimActive
-        if aimActive then
-            aimTarget = getClosestTarget()
-            if not aimTarget then aimActive = false end
-        else
-            aimTarget = nil
-        end
         print("Aim Assist Active:", aimActive)
     end
 end)
 
 -- Aim Assist Render Loop
 RunService.RenderStepped:Connect(function()
-    if not aimActive or not aimTarget then return end
+    if not aimActive then return end
+
+    -- Update target every frame
+    aimTarget = getClosestTarget()
+    if not aimTarget then return end
 
     local char = aimTarget.Character
-    if not char then
-        aimActive = false
-        aimTarget = nil
-        return
-    end
+    if not char then return end
 
-    local part = getClosestPart(char, aimCfg['Hit Location'].Parts)
+    local part = getClosestPart(char, aimCfg["Hit Location"].Parts)
     if not part then return end
 
     -- Prediction
@@ -282,16 +278,14 @@ RunService.RenderStepped:Connect(function()
 
     -- Smooth aim
     local smooth = math.clamp(aimCfg.Value.Smoothness or 0.1, 0.01, 1)
-    Camera.CFrame = Camera.CFrame:Lerp(
-        CFrame.new(Camera.CFrame.Position, predictedPos),
-        smooth
-    )
+    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, predictedPos), smooth)
 
-    -- Optional FOV drawing (if you implement it)
+    -- Optional FOV drawing
     if aimCfg.ShowFov then
-        -- Drawing code goes here
+        -- Implement your drawing code here if needed
     end
 end)
+
 
 
 --// =========================
