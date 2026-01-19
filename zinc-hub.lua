@@ -160,7 +160,7 @@ end
 
 
 --// =========================
---// FULL WORKING AIM ASSIST
+--// CAMLOCK (TABLE-DRIVEN, SMOOTH)
 --// =========================
 
 local Players = game:GetService("Players")
@@ -169,17 +169,18 @@ local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
--- Wait for character to exist
+-- Wait for character
 while not LocalPlayer.Character do
     LocalPlayer.CharacterAdded:Wait()
 end
 
--- Load table
-local aimCfg = getgenv().zinc['Aim Assist']
-local aimActive = false
-local aimTarget = nil
+-- Use Aim Assist table but call it Camlock
+local camCfg = getgenv().zinc['Aim Assist']
+local camActive = false
+local camTarget = nil
+local Mouse = LocalPlayer:GetMouse()
 
--- Helper: get closest part
+-- Helper: get closest part from list
 local function getClosestPart(char, parts)
     for _, name in ipairs(parts) do
         local p = char:FindFirstChild(name)
@@ -188,14 +189,14 @@ local function getClosestPart(char, parts)
     return nil
 end
 
--- Check if target passes all checks
+-- Check target validity
 local function passesChecks(target)
     local char = target.Character
     if not char then return false end
     local hum = char:FindFirstChildOfClass("Humanoid")
     if not hum or hum.Health <= 0 then return false end
 
-    for _, check in ipairs(aimCfg.Checks) do
+    for _, check in ipairs(camCfg.Checks) do
         if check == "Knocked" and hum:FindFirstChild("Knocked") then return false
         elseif check == "Grabbed" and hum:FindFirstChild("Grabbed") then return false
         elseif check == "Vehicle" and char:FindFirstChildOfClass("VehicleSeat") then return false
@@ -204,24 +205,21 @@ local function passesChecks(target)
             if root then
                 local ray = Ray.new(Camera.CFrame.Position, (root.Position - Camera.CFrame.Position).Unit * 500)
                 local hit = workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character})
-                if hit and not hit:IsDescendantOf(char) then
-                    return false
-                end
+                if hit and not hit:IsDescendantOf(char) then return false end
             end
         end
     end
     return true
 end
 
--- Get closest target inside FOV
+-- Get closest target
 local function getClosestTarget()
-    local closest, dist = nil, aimCfg.Fov and aimCfg.Fov.Enabled and aimCfg.Fov.Value or math.huge
-    local Mouse = LocalPlayer:GetMouse()
+    local closest, dist = nil, camCfg.Fov and camCfg.Fov.Enabled and camCfg.Fov.Value or math.huge
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and passesChecks(plr) then
             local char = plr.Character
             if char then
-                local part = getClosestPart(char, aimCfg["Hit Location"].Parts)
+                local part = getClosestPart(char, camCfg["Hit Location"].Parts)
                 if part then
                     local screenPos, onScreen = Camera:WorldToViewportPoint(part.Position)
                     if onScreen then
@@ -238,48 +236,46 @@ local function getClosestTarget()
     return closest
 end
 
--- Toggle key
+-- Toggle Camlock
 UserInputService.InputBegan:Connect(function(input, gp)
     if gp then return end
-    if not aimCfg.Enabled then return end
-    if input.KeyCode.Name:lower() == aimCfg.Keybind:lower() then
-        aimActive = not aimActive
-        print("Aim Assist Toggled:", aimActive)
+    if not camCfg.Enabled then return end
+    if input.KeyCode.Name:lower() == camCfg.Keybind:lower() then
+        camActive = not camActive
+        print("Camlock Active:", camActive)
     end
 end)
 
--- Render loop
+-- Camlock render loop
 RunService.RenderStepped:Connect(function()
-    if not aimActive then return end
+    if not camActive then return end
 
-    -- Continuously update target
-    aimTarget = getClosestTarget()
-    if not aimTarget then return end
+    -- Update target each frame
+    camTarget = getClosestTarget()
+    if not camTarget then return end
 
-    local char = aimTarget.Character
+    local char = camTarget.Character
     if not char then return end
 
-    local part = getClosestPart(char, aimCfg["Hit Location"].Parts)
+    local part = getClosestPart(char, camCfg["Hit Location"].Parts)
     if not part then return end
 
     -- Prediction
-    local pred = aimCfg.Prediction
+    local pred = camCfg.Prediction
     local predictedPos = part.Position + (part.Velocity * Vector3.new(pred.X, pred.Y, pred.Z))
 
-    -- Camera mode check
+    -- Camera type check
     local camType = Camera.CameraType
-    if (camType == Enum.CameraType.Custom and not aimCfg.Value.ThirdPerson) or
-       (camType == Enum.CameraType.Attach and not aimCfg.Value.FirstPerson) then
+    if (camType == Enum.CameraType.Custom and not camCfg.Value.ThirdPerson) or
+       (camType == Enum.CameraType.Attach and not camCfg.Value.FirstPerson) then
         return
     end
 
-    -- Smooth aim
-    local smooth = math.clamp(aimCfg.Value.Smoothness or 0.1, 0.01, 1)
-    Camera.CFrame = Camera.CFrame:Lerp(
-        CFrame.new(Camera.CFrame.Position, predictedPos),
-        smooth
-    )
+    -- Smooth camlock
+    local smooth = math.clamp(camCfg.Value.Smoothness or 0.1, 0.01, 1)
+    Camera.CFrame = Camera.CFrame:Lerp(CFrame.new(Camera.CFrame.Position, predictedPos), smooth)
 end)
+
 
 
 
