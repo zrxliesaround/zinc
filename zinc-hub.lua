@@ -62,37 +62,102 @@ local function getClosestPart(char, parts)
 end
 
 --// =========================
---// SILENT AIM
+--// SILENT AIM (ZINC v1)
 --// =========================
 if cfg["Silent Aim"] and cfg["Silent Aim"].Enabled then
+    local ZA = cfg["Silent Aim"]
     local mt = getrawmetatable(game)
-    local old = mt.__namecall
+    local oldNamecall = mt.__namecall
     setreadonly(mt, false)
 
-    mt.__namecall = newcclosure(function(self, ...)
-        local args = {...}
-        if getnamecallmethod() == "FireServer"
-            and tostring(self):lower():find("shoot") then
+    -- Closest player helper (FOV + checks)
+    local function passesChecks(plr)
+        if not plr.Character or not plr.Character:FindFirstChild("HumanoidRootPart") then return false end
+        if plr.Team == LocalPlayer.Team then return false end
+        for _, check in ipairs(ZA.Checks or {}) do
+            if check == "Knocked" and plr:FindFirstChild("Knocked") then return false end
+            if check == "Grabbed" and plr:FindFirstChild("Grabbed") then return false end
+            if check == "Vehicle" then
+                local hum = plr.Character:FindFirstChildOfClass("Humanoid")
+                if hum and hum.SeatPart then return false end
+            end
+        end
+        return true
+    end
 
-            local target = getClosestPlayer(cfg.Range["Silent Aim"])
-            if target and target.Character then
-                local part = getClosestPart(
-                    target.Character,
-                    cfg["Silent Aim"]["Hit Location"].Parts
-                )
-                if part then
-                    local pred = cfg["Silent Aim"].Prediction.Sets
-                    args[2] = part.Position +
-                        (part.Velocity * Vector3.new(pred.X, pred.Y, pred.Z))
-                    return old(self, unpack(args))
+    local function getClosestPlayerFOV(range)
+        local bestAngle = math.huge
+        local bestPlayer = nil
+        local camPos = Camera.CFrame.Position
+        local lookVec = Camera.CFrame.LookVector
+        local maxFov = (ZA.Fov and ZA.Fov.Enabled and ZA.Fov.Value) or math.huge
+
+        for _, plr in ipairs(Players:GetPlayers()) do
+            if plr ~= LocalPlayer and passesChecks(plr) then
+                local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+                if hrp then
+                    local dir = (hrp.Position - camPos).Unit
+                    local angle = math.deg(math.acos(lookVec:Dot(dir)))
+                    if angle < bestAngle and angle <= maxFov then
+                        bestAngle = angle
+                        bestPlayer = plr
+                    end
                 end
             end
         end
-        return old(self, ...)
+        return bestPlayer
+    end
+
+    -- Predict part position
+    local function predictPos(plr)
+        local parts = ZA["Hit Location"] and ZA["Hit Location"].Parts or {}
+        local bestPart, bestDist, bestPos = nil, math.huge, nil
+        local mousePos2d = Vector2.new(UserInputService:GetMouseLocation().X, UserInputService:GetMouseLocation().Y)
+
+        for _, name in ipairs(parts) do
+            local part = plr.Character:FindFirstChild(name)
+            if part then
+                local sp, onScreen = Camera:WorldToScreenPoint(part.Position)
+                if onScreen then
+                    local part2d = Vector2.new(sp.X, sp.Y)
+                    local dist = (part2d - mousePos2d).Magnitude
+                    if dist < bestDist then
+                        bestDist = dist
+                        bestPart = part
+                        bestPos = part.Position
+                    end
+                end
+            end
+        end
+
+        if bestPart then
+            local vel = bestPart.Velocity or Vector3.zero
+            local pred = ZA.Prediction.Sets or {X=0, Y=0, Z=0}
+            return bestPos + Vector3.new(vel.X * pred.X, vel.Y * pred.Y, vel.Z * pred.Z)
+        end
+        return bestPos
+    end
+
+    -- Hook FireServer for shooting
+    mt.__namecall = newcclosure(function(self, ...)
+        local args = {...}
+        local method = getnamecallmethod()
+        if method == "FireServer" and tostring(self):lower():find("shoot") then
+            local target = getClosestPlayerFOV(cfg.Range["Silent Aim"])
+            if target and target.Character then
+                local partPos = predictPos(target)
+                if partPos then
+                    args[2] = partPos -- Replace bullet target
+                    return oldNamecall(self, unpack(args))
+                end
+            end
+        end
+        return oldNamecall(self, ...)
     end)
 
     setreadonly(mt, true)
 end
+
 
 --// =========================
 --// CAMLOCK
@@ -160,46 +225,54 @@ if spdCfg.Enabled then
 end
 
 --// =========================
---// TRIGGER BOT
+--// TRIGGER BOT (ZINC v1)
 --// =========================
 if cfg["Trigger bot"] and cfg["Trigger bot"].Enabled then
+    local TB = cfg["Trigger bot"]
     local mouseDown = false
 
+    -- Track mouse input
     UserInputService.InputBegan:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 then
+        if i.UserInputType == Enum.UserInputType.MouseButton1 and TB.Keybind.Bind:lower() == "m1" then
             mouseDown = true
         end
     end)
 
     UserInputService.InputEnded:Connect(function(i)
-        if i.UserInputType == Enum.UserInputType.MouseButton1 then
+        if i.UserInputType == Enum.UserInputType.MouseButton1 and TB.Keybind.Bind:lower() == "m1" then
             mouseDown = false
         end
     end)
 
     task.spawn(function()
-        while task.wait(cfg["Trigger bot"].Delay.Value) do
+        while task.wait(TB.Delay.Value) do
             if not mouseDown or not Character then continue end
 
             local rayParams = RaycastParams.new()
             rayParams.FilterDescendantsInstances = {Character}
             rayParams.FilterType = Enum.RaycastFilterType.Blacklist
 
-            local res = workspace:Raycast(
-                Camera.CFrame.Position,
-                Camera.CFrame.LookVector * cfg.Range["Trigger bot"],
-                rayParams
-            )
+            local rayDir = Camera.CFrame.LookVector * cfg.Range["Trigger bot"]
+            local res = workspace:Raycast(Camera.CFrame.Position, rayDir, rayParams)
 
             if res and res.Instance then
                 local hum = res.Instance.Parent:FindFirstChildOfClass("Humanoid")
                 if hum and hum.Health > 0 then
-                    pcall(mouse1click)
+                    local weapon = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Tool")
+                    if weapon and table.find(TB.Weapons, weapon.Name) then
+                        -- Apply prediction (if any)
+                        local pred = TB.Prediction or 0
+                        local targetPos = res.Position + res.Instance.Velocity * pred
+
+                        -- Fire
+                        pcall(mouse1click)  -- left click
+                    end
                 end
             end
         end
     end)
 end
+
 
 --// =========================
 --// ESP – CLEAN NAME + DISTANCE (ABOVE HEAD)
