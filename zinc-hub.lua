@@ -211,7 +211,7 @@ if cfg.ESP and cfg.ESP.Enabled then
     local SMOOTHNESS = 0.35
     local HEAD_OFFSET = Vector3.new(0, 2.3, 0) -- ABOVE head
 
-    local TEXT_SIZE = cfg.ESP.NameESP.TextSize + 6 -- bigger & readable
+    local TEXT_SIZE = cfg.ESP.NameESP.TextSize + 9 -- bigger & readable
 
     local function createESP(plr)
         if plr == LocalPlayer or esp[plr] then return end
