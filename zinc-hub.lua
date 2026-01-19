@@ -202,37 +202,42 @@ if cfg["Trigger bot"] and cfg["Trigger bot"].Enabled then
 end
 
 --// =========================
---// ESP – CLEAN NAME + DISTANCE (HEAD ANCHORED)
+--// ESP – CLEAN NAME + DISTANCE (ABOVE HEAD)
 --// =========================
 if cfg.ESP and cfg.ESP.Enabled then
     local esp = {}
     local distanceCache = {}
 
-    local SMOOTHNESS = 0.25
-    local HEAD_OFFSET = Vector3.new(0, 0.6, 0)
+    local SMOOTHNESS = 0.35
+    local HEAD_OFFSET = Vector3.new(0, 2.3, 0) -- ABOVE head
+
+    local TEXT_SIZE = cfg.ESP.NameESP.TextSize + 6 -- bigger & readable
 
     local function createESP(plr)
         if plr == LocalPlayer or esp[plr] then return end
 
+        -- Shadow (for clarity)
         local shadow = Drawing.new("Text")
         shadow.Center = true
-        shadow.Font = 3 -- 🔥 CLEANER FONT
-        shadow.Size = cfg.ESP.NameESP.TextSize + 3
+        shadow.Font = 0 -- CLEANEST FONT
+        shadow.Size = TEXT_SIZE
         shadow.Color = Color3.new(0, 0, 0)
-        shadow.Transparency = 0.6
+        shadow.Transparency = 0.7
         shadow.Visible = false
 
+        -- Main text
         local text = Drawing.new("Text")
         text.Center = true
-        text.Font = 3 -- 🔥 CLEANER FONT
-        text.Size = cfg.ESP.NameESP.TextSize + 3
-        text.Color = cfg.ESP.NameESP.Color
+        text.Font = 0 -- CLEANEST FONT
+        text.Size = TEXT_SIZE
+        text.Color = Color3.fromRGB(255, 255, 255) -- PURE WHITE
+        text.Transparency = 1
         text.Visible = false
 
         esp[plr] = {
             Text = text,
             Shadow = shadow,
-            ScreenPos = Vector2.zero
+            Pos = Vector2.zero
         }
     end
 
@@ -249,8 +254,9 @@ if cfg.ESP and cfg.ESP.Enabled then
     Players.PlayerAdded:Connect(createESP)
     Players.PlayerRemoving:Connect(removeESP)
 
+    -- Distance updater (low frequency = no lag)
     task.spawn(function()
-        while task.wait(0.25) do
+        while task.wait(0.3) do
             for plr in pairs(esp) do
                 local char = plr.Character
                 local hrp = char and char:FindFirstChild("HumanoidRootPart")
@@ -262,6 +268,7 @@ if cfg.ESP and cfg.ESP.Enabled then
         end
     end)
 
+    -- Smooth render
     RunService.RenderStepped:Connect(function()
         for plr, data in pairs(esp) do
             local char = plr.Character
@@ -274,7 +281,7 @@ if cfg.ESP and cfg.ESP.Enabled then
 
                 if onScreen then
                     local target = Vector2.new(pos.X, pos.Y)
-                    data.ScreenPos = data.ScreenPos:Lerp(target, SMOOTHNESS)
+                    data.Pos = data.Pos:Lerp(target, SMOOTHNESS)
 
                     local dist = distanceCache[plr] or 0
                     local label = plr.Name .. " [" .. dist .. "]"
@@ -282,8 +289,8 @@ if cfg.ESP and cfg.ESP.Enabled then
                     data.Text.Text = label
                     data.Shadow.Text = label
 
-                    data.Text.Position = data.ScreenPos
-                    data.Shadow.Position = data.ScreenPos + Vector2.new(1, 1)
+                    data.Text.Position = data.Pos
+                    data.Shadow.Position = data.Pos + Vector2.new(1, 1)
 
                     data.Text.Visible = true
                     data.Shadow.Visible = true
