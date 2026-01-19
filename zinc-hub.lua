@@ -216,7 +216,7 @@ if cfg.ESP and cfg.ESP.Enabled then
 
         local shadow = Drawing.new("Text")
         shadow.Center = true
-        shadow.Font = 2
+        shadow.Font = 3 -- 🔥 CLEANER FONT
         shadow.Size = cfg.ESP.NameESP.TextSize + 3
         shadow.Color = Color3.new(0, 0, 0)
         shadow.Transparency = 0.6
@@ -224,7 +224,7 @@ if cfg.ESP and cfg.ESP.Enabled then
 
         local text = Drawing.new("Text")
         text.Center = true
-        text.Font = 2
+        text.Font = 3 -- 🔥 CLEANER FONT
         text.Size = cfg.ESP.NameESP.TextSize + 3
         text.Color = cfg.ESP.NameESP.Color
         text.Visible = false
@@ -298,3 +298,4 @@ if cfg.ESP and cfg.ESP.Enabled then
         end
     end)
 end
+
