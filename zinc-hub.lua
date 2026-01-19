@@ -200,33 +200,29 @@ if cfg["Trigger bot"] and cfg["Trigger bot"].Enabled then
         end
     end)
 end
-
 --// =========================
---// ESP – CLEAN NAME + DISTANCE (SMOOTH)
+--// ESP – CLEAN NAME + DISTANCE (HEAD ANCHORED)
 --// =========================
 if cfg.ESP and cfg.ESP.Enabled then
     local esp = {}
     local distanceCache = {}
 
-    local SMOOTHNESS = 0.25 -- lower = snappier, higher = smoother
+    local SMOOTHNESS = 0.25
+    local HEAD_OFFSET = Vector3.new(0, 0.6, 0) -- height above head
 
     local function createESP(plr)
         if plr == LocalPlayer or esp[plr] then return end
 
-        -- Shadow (for clean text)
         local shadow = Drawing.new("Text")
         shadow.Center = true
-        shadow.Outline = false
         shadow.Font = 2
         shadow.Size = cfg.ESP.NameESP.TextSize
         shadow.Color = Color3.new(0, 0, 0)
         shadow.Transparency = 0.6
         shadow.Visible = false
 
-        -- Main text
         local text = Drawing.new("Text")
         text.Center = true
-        text.Outline = false
         text.Font = 2
         text.Size = cfg.ESP.NameESP.TextSize
         text.Color = cfg.ESP.NameESP.Color
@@ -248,14 +244,11 @@ if cfg.ESP and cfg.ESP.Enabled then
         end
     end
 
-    for _, p in ipairs(Players:GetPlayers()) do
-        createESP(p)
-    end
-
+    for _, p in ipairs(Players:GetPlayers()) do createESP(p) end
     Players.PlayerAdded:Connect(createESP)
     Players.PlayerRemoving:Connect(removeESP)
 
-    -- Update distance (THROTTLED)
+    -- Distance update (throttled)
     task.spawn(function()
         while task.wait(0.25) do
             for plr in pairs(esp) do
@@ -269,19 +262,20 @@ if cfg.ESP and cfg.ESP.Enabled then
         end
     end)
 
-    -- Smooth position update (EVERY FRAME)
+    -- Smooth render update
     RunService.RenderStepped:Connect(function()
         for plr, data in pairs(esp) do
             local char = plr.Character
-            local hrp = char and char:FindFirstChild("HumanoidRootPart")
+            local head = char and char:FindFirstChild("Head")
             local hum = char and char:FindFirstChildOfClass("Humanoid")
 
-            if hrp and hum and hum.Health > 0 then
-                local pos, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+            if head and hum and hum.Health > 0 then
+                local worldPos = head.Position + HEAD_OFFSET
+                local pos, onScreen = Camera:WorldToViewportPoint(worldPos)
 
                 if onScreen then
-                    local targetPos = Vector2.new(pos.X, pos.Y)
-                    data.ScreenPos = data.ScreenPos:Lerp(targetPos, SMOOTHNESS)
+                    local target = Vector2.new(pos.X, pos.Y)
+                    data.ScreenPos = data.ScreenPos:Lerp(target, SMOOTHNESS)
 
                     local dist = distanceCache[plr] or 0
                     local label = plr.Name .. " [" .. dist .. "]"
@@ -305,3 +299,4 @@ if cfg.ESP and cfg.ESP.Enabled then
         end
     end)
 end
+
