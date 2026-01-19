@@ -289,59 +289,65 @@ end)
 
 
 --// =========================
---// ESP – CLEAN NAME + DISTANCE (BELOW FEET)
+--// ESP – TABLE DRIVEN (BOTTOM OF CHARACTER)
 --// =========================
 if cfg.ESP and cfg.ESP.Enabled then
+    local ESPcfg = cfg.ESP
+    local NameCfg = ESPcfg.NameESP
+    local DistCfg = ESPcfg.DistanceESP
+
     local esp = {}
     local distanceCache = {}
 
     local SMOOTHNESS = 0.35
-    local FOOT_OFFSET = Vector3.new(0, -3.2, 0) -- BELOW character
-
-    local TEXT_SIZE = cfg.ESP.NameESP.TextSize + 9
+    local FOOT_OFFSET = Vector3.new(0, -3.2, 0) -- BELOW character (feet)
 
     local function createESP(plr)
         if plr == LocalPlayer or esp[plr] then return end
 
-        -- Shadow
-        local shadow = Drawing.new("Text")
-        shadow.Center = true
-        shadow.Font = 0
-        shadow.Size = TEXT_SIZE
-        shadow.Color = Color3.new(0, 0, 0)
-        shadow.Transparency = 0.7
-        shadow.Visible = false
-
-        -- Main text
         local text = Drawing.new("Text")
         text.Center = true
         text.Font = 0
-        text.Size = TEXT_SIZE
-        text.Color = Color3.fromRGB(255, 255, 255)
+        text.Size = NameCfg.TextSize
+        text.Color = NameCfg.Color
         text.Transparency = 1
         text.Visible = false
 
+        local outline
+        if NameCfg.Outline then
+            outline = Drawing.new("Text")
+            outline.Center = true
+            outline.Font = 0
+            outline.Size = NameCfg.TextSize
+            outline.Color = Color3.new(0, 0, 0)
+            outline.Transparency = 0.7
+            outline.Visible = false
+        end
+
         esp[plr] = {
             Text = text,
-            Shadow = shadow,
+            Outline = outline,
             Pos = Vector2.zero
         }
     end
 
     local function removeESP(plr)
-        if esp[plr] then
-            esp[plr].Text:Remove()
-            esp[plr].Shadow:Remove()
+        local obj = esp[plr]
+        if obj then
+            obj.Text:Remove()
+            if obj.Outline then obj.Outline:Remove() end
             esp[plr] = nil
             distanceCache[plr] = nil
         end
     end
 
-    for _, p in ipairs(Players:GetPlayers()) do createESP(p) end
+    for _, p in ipairs(Players:GetPlayers()) do
+        createESP(p)
+    end
     Players.PlayerAdded:Connect(createESP)
     Players.PlayerRemoving:Connect(removeESP)
 
-    -- Distance updater (low cost)
+    -- Distance updater (low frequency)
     task.spawn(function()
         while task.wait(0.3) do
             for plr in pairs(esp) do
@@ -355,7 +361,7 @@ if cfg.ESP and cfg.ESP.Enabled then
         end
     end)
 
-    -- Render
+    -- Render loop
     RunService.RenderStepped:Connect(function()
         for plr, data in pairs(esp) do
             local char = plr.Character
@@ -370,24 +376,38 @@ if cfg.ESP and cfg.ESP.Enabled then
                     local target = Vector2.new(pos.X, pos.Y)
                     data.Pos = data.Pos:Lerp(target, SMOOTHNESS)
 
-                    local dist = distanceCache[plr] or 0
-                    local label = plr.Name .. " [" .. dist .. "]"
+                    local label = ""
+
+                    if NameCfg.Enabled then
+                        label = plr.Name
+                    end
+
+                    if DistCfg.Enabled then
+                        local dist = distanceCache[plr] or 0
+                        label = label ~= "" and
+                            (label .. " [" .. dist .. "]") or
+                            ("[" .. dist .. "]")
+                    end
 
                     data.Text.Text = label
-                    data.Shadow.Text = label
-
+                    data.Text.Size = NameCfg.TextSize
+                    data.Text.Color = NameCfg.Color
                     data.Text.Position = data.Pos
-                    data.Shadow.Position = data.Pos + Vector2.new(1, 1)
-
                     data.Text.Visible = true
-                    data.Shadow.Visible = true
+
+                    if data.Outline then
+                        data.Outline.Text = label
+                        data.Outline.Size = NameCfg.TextSize
+                        data.Outline.Position = data.Pos + Vector2.new(1, 1)
+                        data.Outline.Visible = true
+                    end
                 else
                     data.Text.Visible = false
-                    data.Shadow.Visible = false
+                    if data.Outline then data.Outline.Visible = false end
                 end
             else
                 data.Text.Visible = false
-                data.Shadow.Visible = false
+                if data.Outline then data.Outline.Visible = false end
             end
         end
     end)
