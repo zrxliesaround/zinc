@@ -163,12 +163,26 @@ end
 --// AIM ASSIST (FULL TABLE-DRIVEN)
 --// =========================
 
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local LocalPlayer = Players.LocalPlayer
+local Camera = workspace.CurrentCamera
+
 local aimCfg = getgenv().zinc['Aim Assist']
 local aimActive = false
 local aimTarget = nil
 
 local Mouse = LocalPlayer:GetMouse()
-local Camera = workspace.CurrentCamera
+
+-- Helper: find closest part from a list
+local function getClosestPart(char, parts)
+    for _, name in ipairs(parts) do
+        local p = char:FindFirstChild(name)
+        if p then return p end
+    end
+    return nil
+end
 
 -- Helper: check if target passes table checks
 local function passesChecks(target)
@@ -186,7 +200,6 @@ local function passesChecks(target)
         elseif check == 'Vehicle' and char:FindFirstChildOfClass('VehicleSeat') then
             return false
         elseif check == 'Wall' then
-            -- optional wall check
             local root = char:FindFirstChild('HumanoidRootPart')
             if root then
                 local ray = Ray.new(Camera.CFrame.Position, (root.Position - Camera.CFrame.Position).Unit * 500)
@@ -201,10 +214,10 @@ local function passesChecks(target)
     return true
 end
 
--- Get closest target in FOV
+-- Get closest target within FOV
 local function getClosestTarget()
-    local closest, dist = nil, aimCfg.Fov.Enabled and aimCfg.Fov.Value or math.huge
-    for _, plr in ipairs(game:GetService("Players"):GetPlayers()) do
+    local closest, dist = nil, aimCfg.Fov and aimCfg.Fov.Enabled and aimCfg.Fov.Value or math.huge
+    for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and passesChecks(plr) then
             local char = plr.Character
             if char then
@@ -226,22 +239,23 @@ local function getClosestTarget()
     return closest
 end
 
--- Toggle aim assist
+-- Toggle Aim Assist
 UserInputService.InputBegan:Connect(function(i, gp)
     if gp or i.UserInputType ~= Enum.UserInputType.Keyboard then return end
-    if i.KeyCode.Name:lower() ~= aimCfg.Keybind:lower() then return end
     if not aimCfg.Enabled then return end
-
-    aimActive = not aimActive
-    if aimActive then
-        aimTarget = getClosestTarget()
-        if not aimTarget then aimActive = false end
-    else
-        aimTarget = nil
+    if i.KeyCode.Name:lower() == aimCfg.Keybind:lower() then
+        aimActive = not aimActive
+        if aimActive then
+            aimTarget = getClosestTarget()
+            if not aimTarget then aimActive = false end
+        else
+            aimTarget = nil
+        end
+        print("Aim Assist Active:", aimActive)
     end
 end)
 
--- Render loop
+-- Aim Assist Render Loop
 RunService.RenderStepped:Connect(function()
     if not aimActive or not aimTarget then return end
 
@@ -259,25 +273,59 @@ RunService.RenderStepped:Connect(function()
     local pred = aimCfg.Prediction
     local predictedPos = part.Position + (part.Velocity * Vector3.new(pred.X, pred.Y, pred.Z))
 
-    -- Check camera mode
-    local camType = workspace.CurrentCamera.CameraType
+    -- Camera type check
+    local camType = Camera.CameraType
     if (camType == Enum.CameraType.Custom and not aimCfg.Value.ThirdPerson) or
        (camType == Enum.CameraType.Attach and not aimCfg.Value.FirstPerson) then
         return
     end
 
     -- Smooth aim
-    local smooth = math.clamp(aimCfg.Value.Smoothness, 0.01, 1)
+    local smooth = math.clamp(aimCfg.Value.Smoothness or 0.1, 0.01, 1)
     Camera.CFrame = Camera.CFrame:Lerp(
         CFrame.new(Camera.CFrame.Position, predictedPos),
         smooth
     )
 
-    -- Optional: draw FOV
+    -- Optional FOV drawing (if you implement it)
     if aimCfg.ShowFov then
-        -- You can implement Drawing library code here
+        -- Drawing code goes here
     end
 end)
+
+
+--// =========================
+--// SPEED MODIFICATIONS
+--// =========================
+
+local spdCfg = getgenv().zinc["Speed Modifications"].Options
+if spdCfg.Enabled then
+    local Humanoid = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildOfClass("Humanoid")
+    local speed = spdCfg.DefaultSpeed
+    local enabled = false
+
+    local function apply()
+        if Humanoid then
+            Humanoid.WalkSpeed = enabled and speed or 16
+        end
+    end
+
+    UserInputService.InputBegan:Connect(function(i, gp)
+        if gp or i.UserInputType ~= Enum.UserInputType.Keyboard then return end
+        local k = i.KeyCode.Name
+        if k == spdCfg.Keybinds.ToggleMovement then
+            enabled = not enabled
+            apply()
+            print("Speed Mod:", enabled and speed or 16)
+        elseif k == spdCfg.Keybinds["Speed +5"] then
+            speed += 5
+            if enabled then apply() end
+        elseif k == spdCfg.Keybinds["Speed -5"] then
+            speed = math.max(16, speed - 5)
+            if enabled then apply() end
+        end
+    end)
+end
 
 
 --// =========================
