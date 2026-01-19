@@ -225,13 +225,13 @@ if spdCfg.Enabled then
 end
 
 --// =========================
---// TRIGGER BOT (ZINC v2 - works in Da Hood)
+--// TRIGGER BOT (NO PREDICTION)
 --// =========================
 if cfg["Trigger bot"] and cfg["Trigger bot"].Enabled then
     local TB = cfg["Trigger bot"]
     local mouseDown = false
 
-    -- Track M1 input
+    -- Track M1 input (hold mode)
     UserInputService.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 and TB.Keybind.Bind:lower() == "m1" then
             if TB.Keybind["Keybind Mode"]:lower() == "hold" then
@@ -254,10 +254,11 @@ if cfg["Trigger bot"] and cfg["Trigger bot"].Enabled then
         while task.wait(TB.Delay.Value) do
             if not mouseDown or not Character then continue end
 
+            -- Make sure player has a valid weapon
             local weapon = Character:FindFirstChildOfClass("Tool")
             if not weapon or not table.find(TB.Weapons, weapon.Name) then continue end
 
-            -- Find target via camera raycast (closest humanoid)
+            -- Raycast directly from camera
             local rayParams = RaycastParams.new()
             rayParams.FilterDescendantsInstances = {Character}
             rayParams.FilterType = Enum.RaycastFilterType.Blacklist
@@ -269,18 +270,19 @@ if cfg["Trigger bot"] and cfg["Trigger bot"].Enabled then
             )
 
             if res and res.Instance then
-                local targetHum = res.Instance.Parent:FindFirstChildOfClass("Humanoid")
-                if targetHum and targetHum.Health > 0 then
-                    -- FireServer the shoot event instead of mouse1click
-                    for _, ev in pairs(getconnections(LocalPlayer.PlayerScripts:FindFirstChildWhichIsA("RemoteEvent") or {})) do
-                        -- Not all RemoteEvents are accessible, but this is the idea:
-                        -- ev:FireServer(args) -- use the same args as Silent Aim hook
-                    end
+                local hum = res.Instance.Parent:FindFirstChildOfClass("Humanoid")
+                if hum and hum.Health > 0 then
+                    -- FireServer using same method as Silent Aim (no prediction)
+                    local args = {res.Position} -- just hit the part directly
+                    -- Trigger the RemoteEvent or function that Silent Aim uses
+                    -- This line may need your existing hub's hook, e.g.:
+                    -- oldNamecall(self, unpack(args))
                 end
             end
         end
     end)
 end
+
 
 --// =========================
 --// ESP – CLEAN NAME + DISTANCE (ABOVE HEAD)
