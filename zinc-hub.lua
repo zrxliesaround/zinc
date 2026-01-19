@@ -160,39 +160,82 @@ end
 
 
 --// =========================
---// CAMLOCK
+--// CAMLOCK (STABLE / CURSOR-BASED)
 --// =========================
+
 local camCfg = cfg.Camlock
 local camActive = false
-local camTarget
+local camTarget = nil
+
 local camKey = camCfg.Keybind:lower()
 local smooth = math.clamp(camCfg.Value.Snappiness * 0.15, 0.05, 0.25)
 
+local Mouse = LocalPlayer:GetMouse()
+
+-- Get player under mouse (ONE TIME)
+local function getPlayerUnderMouse()
+    local target = Mouse.Target
+    if not target then return nil end
+
+    local model = target:FindFirstAncestorOfClass("Model")
+    if not model then return nil end
+
+    local plr = Players:GetPlayerFromCharacter(model)
+    if plr and plr ~= LocalPlayer then
+        return plr
+    end
+    return nil
+end
+
+-- Toggle camlock
 UserInputService.InputBegan:Connect(function(i, gp)
     if gp or i.UserInputType ~= Enum.UserInputType.Keyboard then return end
-    if i.KeyCode.Name:lower() == camKey then
-        camActive = not camActive
-        camTarget = camActive and getClosestPlayer(cfg.Range.Camlock) or nil
+    if i.KeyCode.Name:lower() ~= camKey then return end
+
+    camActive = not camActive
+
+    if camActive then
+        camTarget = getPlayerUnderMouse()
+        if not camTarget then
+            camActive = false
+        end
+    else
+        camTarget = nil
     end
 end)
 
+-- Render loop
 RunService.RenderStepped:Connect(function()
-    if camActive and camTarget and camTarget.Character then
-        local part = getClosestPart(
-            camTarget.Character,
-            camCfg["Hit Location"].Parts
-        )
-        if part then
-            local pred = camCfg.Prediction
-            local pos = part.Position +
-                (part.Velocity * Vector3.new(pred.X, pred.Y, pred.Z))
-            Camera.CFrame = Camera.CFrame:Lerp(
-                CFrame.new(Camera.CFrame.Position, pos),
-                smooth
-            )
-        end
+    if not camActive or not camTarget then return end
+
+    local char = camTarget.Character
+    if not char then
+        camActive = false
+        camTarget = nil
+        return
     end
+
+    local hum = char:FindFirstChildOfClass("Humanoid")
+    if not hum or hum.Health <= 0 then
+        camActive = false
+        camTarget = nil
+        return
+    end
+
+    local part = getClosestPart(char, camCfg["Hit Location"].Parts)
+    if not part then return end
+
+    -- Prediction
+    local pred = camCfg.Prediction
+    local predictedPos = part.Position +
+        (part.Velocity * Vector3.new(pred.X, pred.Y, pred.Z))
+
+    Camera.CFrame = Camera.CFrame:Lerp(
+        CFrame.new(Camera.CFrame.Position, predictedPos),
+        smooth
+    )
 end)
+
 
 --// =========================
 --// SPEED (NO LAG)
