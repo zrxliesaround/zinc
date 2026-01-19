@@ -1,10 +1,12 @@
---// ZINC – Da Hood Optimized Rewrite
---// Safe • Smooth • No Slowdown
+--// ZINC HUB – CONFIG-CORRECT SOURCE
+--// Matches getgenv().zinc table exactly
+--// Da Hood safe – no slowdown
 
 if _G.ZINC_LOADED then return end
 _G.ZINC_LOADED = true
 
-local config = getgenv().zinc or {}
+local cfg = getgenv().zinc
+if not cfg then return warn("[ZINC] Config not found") end
 
 --// Services
 local Players = game:GetService("Players")
@@ -13,30 +15,26 @@ local UserInputService = game:GetService("UserInputService")
 local LocalPlayer = Players.LocalPlayer
 local Camera = workspace.CurrentCamera
 
---// Character Handling
+--// Character refs
 local Character, Humanoid, HRP
-
-local function onCharacter(char)
+local function onChar(char)
     Character = char
     Humanoid = char:WaitForChild("Humanoid")
     HRP = char:WaitForChild("HumanoidRootPart")
 end
+if LocalPlayer.Character then onChar(LocalPlayer.Character) end
+LocalPlayer.CharacterAdded:Connect(onChar)
 
-if LocalPlayer.Character then
-    onCharacter(LocalPlayer.Character)
-end
-LocalPlayer.CharacterAdded:Connect(onCharacter)
-
---// Utility: Closest Player
+--// Utility: Closest player + closest part
 local function getClosestPlayer(range)
-    if not HRP then return nil end
+    if not HRP then return end
     local closest, dist = nil, range or math.huge
 
     for _, plr in ipairs(Players:GetPlayers()) do
         if plr ~= LocalPlayer and plr.Character then
-            local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
             local hum = plr.Character:FindFirstChildOfClass("Humanoid")
-            if hrp and hum and hum.Health > 0 then
+            local hrp = plr.Character:FindFirstChild("HumanoidRootPart")
+            if hum and hrp and hum.Health > 0 then
                 local mag = (HRP.Position - hrp.Position).Magnitude
                 if mag < dist then
                     closest, dist = plr, mag
@@ -47,22 +45,45 @@ local function getClosestPlayer(range)
     return closest
 end
 
+local function getClosestPart(char, parts)
+    local hrp = char:FindFirstChild("HumanoidRootPart")
+    if not hrp then return end
+    local closest, dist = nil, math.huge
+    for _, name in ipairs(parts) do
+        local part = char:FindFirstChild(name)
+        if part then
+            local mag = (part.Position - hrp.Position).Magnitude
+            if mag < dist then
+                closest, dist = part, mag
+            end
+        end
+    end
+    return closest
+end
+
 --// =========================
---// SILENT AIM (SAFE)
+--// SILENT AIM
 --// =========================
-if config["Silent Aim"] and config["Silent Aim"].Enabled then
+if cfg["Silent Aim"] and cfg["Silent Aim"].Enabled then
     local mt = getrawmetatable(game)
     local old = mt.__namecall
     setreadonly(mt, false)
 
     mt.__namecall = newcclosure(function(self, ...)
         local args = {...}
-        if getnamecallmethod() == "FireServer" and tostring(self):lower():find("shoot") then
-            local target = getClosestPlayer(config.Range and config.Range["Silent Aim"] or 250)
+        if getnamecallmethod() == "FireServer"
+            and tostring(self):lower():find("shoot") then
+
+            local target = getClosestPlayer(cfg.Range["Silent Aim"])
             if target and target.Character then
-                local hrp = target.Character:FindFirstChild("HumanoidRootPart")
-                if hrp then
-                    args[2] = hrp.Position
+                local part = getClosestPart(
+                    target.Character,
+                    cfg["Silent Aim"]["Hit Location"].Parts
+                )
+                if part then
+                    local pred = cfg["Silent Aim"].Prediction.Sets
+                    args[2] = part.Position +
+                        (part.Velocity * Vector3.new(pred.X, pred.Y, pred.Z))
                     return old(self, unpack(args))
                 end
             end
@@ -74,76 +95,78 @@ if config["Silent Aim"] and config["Silent Aim"].Enabled then
 end
 
 --// =========================
---// CAMLOCK (SMOOTH)
+--// CAMLOCK
 --// =========================
-local camlockActive = false
-local camlockTarget
-local camlockKey = (config.Camlock and config.Camlock.Keybind or "q"):lower()
-local camlockSmooth = 0.15
+local camCfg = cfg.Camlock
+local camActive = false
+local camTarget
+local camKey = camCfg.Keybind:lower()
+local smooth = math.clamp(camCfg.Value.Snappiness * 0.15, 0.05, 0.25)
 
-UserInputService.InputBegan:Connect(function(input, gp)
-    if gp or input.UserInputType ~= Enum.UserInputType.Keyboard then return end
-    if input.KeyCode.Name:lower() == camlockKey then
-        camlockActive = not camlockActive
-        camlockTarget = camlockActive and getClosestPlayer(config.Range and config.Range.Camlock or 250) or nil
+UserInputService.InputBegan:Connect(function(i, gp)
+    if gp or i.UserInputType ~= Enum.UserInputType.Keyboard then return end
+    if i.KeyCode.Name:lower() == camKey then
+        camActive = not camActive
+        camTarget = camActive and getClosestPlayer(cfg.Range.Camlock) or nil
     end
 end)
 
 RunService.RenderStepped:Connect(function()
-    if camlockActive and camlockTarget and camlockTarget.Character then
-        local hrp = camlockTarget.Character:FindFirstChild("HumanoidRootPart")
-        if hrp then
-            local cf = CFrame.new(Camera.CFrame.Position, hrp.Position)
-            Camera.CFrame = Camera.CFrame:Lerp(cf, camlockSmooth)
+    if camActive and camTarget and camTarget.Character then
+        local part = getClosestPart(
+            camTarget.Character,
+            camCfg["Hit Location"].Parts
+        )
+        if part then
+            local pred = camCfg.Prediction
+            local pos = part.Position +
+                (part.Velocity * Vector3.new(pred.X, pred.Y, pred.Z))
+            Camera.CFrame = Camera.CFrame:Lerp(
+                CFrame.new(Camera.CFrame.Position, pos),
+                smooth
+            )
         end
     end
 end)
 
 --// =========================
---// SPEED (NO SLOWDOWN)
+--// SPEED (NO LAG)
 --// =========================
-local speedCfg = config["Speed Modifications"] and config["Speed Modifications"].Options
-if speedCfg and speedCfg.Enabled then
-    local toggled = false
-    local speed = math.clamp(speedCfg.DefaultSpeed or 20, 16, 22)
+local spdCfg = cfg["Speed Modifications"].Options
+if spdCfg.Enabled then
+    local speed = spdCfg.DefaultSpeed
+    local enabled = false
 
-    local toggleKey = (speedCfg.Keybinds.ToggleMovement or "z"):lower()
-    local upKey = (speedCfg.Keybinds["Speed +5"] or "m"):lower()
-    local downKey = (speedCfg.Keybinds["Speed -5"] or "n"):lower()
-
-    local function applySpeed()
+    local function apply()
         if Humanoid then
-            Humanoid.WalkSpeed = toggled and speed or 16
+            Humanoid.WalkSpeed = enabled and speed or 16
         end
     end
 
-    UserInputService.InputBegan:Connect(function(input, gp)
-        if gp or input.UserInputType ~= Enum.UserInputType.Keyboard then return end
-        local key = input.KeyCode.Name:lower()
-
-        if key == toggleKey then
-            toggled = not toggled
-            applySpeed()
-        elseif key == upKey then
-            speed = math.min(speed + 1, 22)
-            if toggled then applySpeed() end
-        elseif key == downKey then
-            speed = math.max(speed - 1, 16)
-            if toggled then applySpeed() end
+    UserInputService.InputBegan:Connect(function(i, gp)
+        if gp or i.UserInputType ~= Enum.UserInputType.Keyboard then return end
+        local k = i.KeyCode.Name
+        if k == spdCfg.Keybinds.ToggleMovement then
+            enabled = not enabled
+            apply()
+        elseif k == spdCfg.Keybinds["Speed +5"] then
+            speed += 5
+            if enabled then apply() end
+        elseif k == spdCfg.Keybinds["Speed -5"] then
+            speed = math.max(16, speed - 5)
+            if enabled then apply() end
         end
     end)
-
-    if Humanoid then applySpeed() end
 end
 
 --// =========================
---// TRIGGER BOT (THROTTLED)
+--// TRIGGER BOT
 --// =========================
-if config["Trigger bot"] and config["Trigger bot"].Enabled then
+if cfg["Trigger bot"] and cfg["Trigger bot"].Enabled then
     local mouseDown = false
 
-    UserInputService.InputBegan:Connect(function(i, gp)
-        if not gp and i.UserInputType == Enum.UserInputType.MouseButton1 then
+    UserInputService.InputBegan:Connect(function(i)
+        if i.UserInputType == Enum.UserInputType.MouseButton1 then
             mouseDown = true
         end
     end)
@@ -155,21 +178,21 @@ if config["Trigger bot"] and config["Trigger bot"].Enabled then
     end)
 
     task.spawn(function()
-        while task.wait(0.05) do
+        while task.wait(cfg["Trigger bot"].Delay.Value) do
             if not mouseDown or not Character then continue end
 
             local rayParams = RaycastParams.new()
             rayParams.FilterDescendantsInstances = {Character}
             rayParams.FilterType = Enum.RaycastFilterType.Blacklist
 
-            local result = workspace:Raycast(
+            local res = workspace:Raycast(
                 Camera.CFrame.Position,
-                Camera.CFrame.LookVector * (config.Range and config.Range["Trigger bot"] or 250),
+                Camera.CFrame.LookVector * cfg.Range["Trigger bot"],
                 rayParams
             )
 
-            if result and result.Instance then
-                local hum = result.Instance.Parent:FindFirstChildOfClass("Humanoid")
+            if res and res.Instance then
+                local hum = res.Instance.Parent:FindFirstChildOfClass("Humanoid")
                 if hum and hum.Health > 0 then
                     pcall(mouse1click)
                 end
@@ -179,28 +202,25 @@ if config["Trigger bot"] and config["Trigger bot"].Enabled then
 end
 
 --// =========================
---// ESP (OPTIMIZED)
+--// ESP – NAME + DISTANCE ONLY
 --// =========================
-if config.ESP and config.ESP.Enabled then
+if cfg.ESP and cfg.ESP.Enabled then
     local esp = {}
 
-    local function addESP(plr)
-        if esp[plr] or plr == LocalPlayer then return end
-        esp[plr] = Drawing.new("Text")
-        esp[plr].Size = 13
-        esp[plr].Center = true
-        esp[plr].Outline = true
-        esp[plr].Color = Color3.new(1,1,1)
+    local function add(plr)
+        if plr == LocalPlayer or esp[plr] then return end
+        local name = Drawing.new("Text")
+        name.Center = true
+        name.Outline = cfg.ESP.NameESP.Outline
+        name.Size = cfg.ESP.NameESP.TextSize
+        name.Color = cfg.ESP.NameESP.Color
+        esp[plr] = name
     end
 
-    for _, p in ipairs(Players:GetPlayers()) do addESP(p) end
-    Players.PlayerAdded:Connect(addESP)
-
+    for _, p in ipairs(Players:GetPlayers()) do add(p) end
+    Players.PlayerAdded:Connect(add)
     Players.PlayerRemoving:Connect(function(p)
-        if esp[p] then
-            esp[p]:Remove()
-            esp[p] = nil
-        end
+        if esp[p] then esp[p]:Remove() esp[p] = nil end
     end)
 
     task.spawn(function()
@@ -209,11 +229,13 @@ if config.ESP and config.ESP.Enabled then
                 local char = plr.Character
                 local hrp = char and char:FindFirstChild("HumanoidRootPart")
                 local hum = char and char:FindFirstChildOfClass("Humanoid")
-
                 if hrp and hum and hum.Health > 0 then
-                    local pos, onscreen = Camera:WorldToViewportPoint(hrp.Position)
-                    if onscreen then
-                        text.Text = plr.Name
+                    local pos, on = Camera:WorldToViewportPoint(hrp.Position)
+                    if on then
+                        local dist = math.floor(
+                            (Camera.CFrame.Position - hrp.Position).Magnitude
+                        )
+                        text.Text = plr.Name .. " [" .. dist .. "]"
                         text.Position = Vector2.new(pos.X, pos.Y)
                         text.Visible = true
                     else
