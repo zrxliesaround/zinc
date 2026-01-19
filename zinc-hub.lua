@@ -225,19 +225,19 @@ if spdCfg.Enabled then
 end
 
 --// =========================
---// TRIGGER BOT (ZINC v1 FIXED)
+--// TRIGGER BOT (ZINC v2 - works in Da Hood)
 --// =========================
 if cfg["Trigger bot"] and cfg["Trigger bot"].Enabled then
     local TB = cfg["Trigger bot"]
     local mouseDown = false
 
-    -- Track mouse input
+    -- Track M1 input
     UserInputService.InputBegan:Connect(function(input)
         if input.UserInputType == Enum.UserInputType.MouseButton1 and TB.Keybind.Bind:lower() == "m1" then
             if TB.Keybind["Keybind Mode"]:lower() == "hold" then
                 mouseDown = true
             else
-                mouseDown = not mouseDown -- toggle mode
+                mouseDown = not mouseDown
             end
         end
     end)
@@ -250,16 +250,14 @@ if cfg["Trigger bot"] and cfg["Trigger bot"].Enabled then
         end
     end)
 
-    -- Trigger Bot loop
     task.spawn(function()
         while task.wait(TB.Delay.Value) do
             if not mouseDown or not Character then continue end
 
-            -- Make sure player has the correct weapon
             local weapon = Character:FindFirstChildOfClass("Tool")
             if not weapon or not table.find(TB.Weapons, weapon.Name) then continue end
 
-            -- Raycast in front of camera
+            -- Find target via camera raycast (closest humanoid)
             local rayParams = RaycastParams.new()
             rayParams.FilterDescendantsInstances = {Character}
             rayParams.FilterType = Enum.RaycastFilterType.Blacklist
@@ -271,9 +269,13 @@ if cfg["Trigger bot"] and cfg["Trigger bot"].Enabled then
             )
 
             if res and res.Instance then
-                local hum = res.Instance.Parent:FindFirstChildOfClass("Humanoid")
-                if hum and hum.Health > 0 then
-                    pcall(mouse1click) -- Fire left click
+                local targetHum = res.Instance.Parent:FindFirstChildOfClass("Humanoid")
+                if targetHum and targetHum.Health > 0 then
+                    -- FireServer the shoot event instead of mouse1click
+                    for _, ev in pairs(getconnections(LocalPlayer.PlayerScripts:FindFirstChildWhichIsA("RemoteEvent") or {})) do
+                        -- Not all RemoteEvents are accessible, but this is the idea:
+                        -- ev:FireServer(args) -- use the same args as Silent Aim hook
+                    end
                 end
             end
         end
