@@ -159,9 +159,9 @@ if cfg["Silent Aim"] and cfg["Silent Aim"].Enabled then
 end
 
 
---// =========================
+
 --// CAMLOCK (TABLE-DRIVEN, SMOOTH)
---// =========================
+
 
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
@@ -279,9 +279,9 @@ end)
 
 
 
---// =========================
+
 --// SPEED (NO LAG)
---// =========================
+
 local spdCfg = cfg["Speed Modifications"].Options
 if spdCfg.Enabled then
     local speed = spdCfg.DefaultSpeed
@@ -309,9 +309,9 @@ if spdCfg.Enabled then
     end)
 end
 
---// =========================
---// TRIGGER BOT (ZINC – NO PREDICTION)
---// =========================
+
+--// TRIGGER BOT (NO PREDICTION)
+
 local TriggerBot = cfg["Trigger bot"]
 local mouseHeld = false
 
@@ -373,9 +373,9 @@ task.spawn(function()
 end)
 
 
---// =========================
---// ESP – CLEAN, SHARP, BOTTOM (TABLE DRIVEN)
---// =========================
+
+--// ESP 
+
 if cfg.ESP and cfg.ESP.Enabled then
     local ESPcfg = cfg.ESP
     local NameCfg = ESPcfg.NameESP
